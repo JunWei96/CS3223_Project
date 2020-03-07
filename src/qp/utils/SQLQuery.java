@@ -105,8 +105,6 @@ public class SQLQuery {
     }
 
     public void setOrderByList(ArrayList<Attribute> list) {
-        System.out.println(list.get(0));
-        System.out.println("Hello order!");
         orderbyList = list;
     }
 
