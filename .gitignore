@@ -1,0 +1,5 @@
+testcases/*.md
+testcases/*.stat
+testcases/*.tbl
+testcases/*.txt
+testcases/*.out
