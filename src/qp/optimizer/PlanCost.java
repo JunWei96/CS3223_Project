@@ -142,7 +142,6 @@ public class PlanCost {
         long numbuff = BufferManager.getBuffersPerJoin();
         long joincost;
 
-        System.out.println("calculating cost!!!!!!!!!");
         switch (joinType) {
             case JoinType.NESTEDJOIN:
 //                joincost = 0;
