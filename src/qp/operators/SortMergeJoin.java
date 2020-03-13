@@ -9,8 +9,8 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
-public class SortMerge extends Join {
-    public SortMerge(Join jn) {
+public class SortMergeJoin extends Join {
+    public SortMergeJoin(Join jn) {
         super(jn.getLeft(), jn.getRight(), jn.getCondition(), jn.getOpType());
         schema = jn.getSchema();
         jointype = jn.getJoinType();

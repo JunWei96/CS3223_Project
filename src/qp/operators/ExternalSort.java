@@ -23,8 +23,7 @@ public class ExternalSort extends Operator{
     private Comparator<Tuple> comparator;
     private List<File> sortedRunsFile;
 
-    public ExternalSort(Operator raw_operator, int Buffernum)
-    {
+    public ExternalSort(Operator raw_operator, int Buffernum) {
         super(OpType.SORT);
         this.instance_no = num_of_ins;
         this.raw = raw_operator;
@@ -33,9 +32,8 @@ public class ExternalSort extends Operator{
 
     @Override
     // open() for pre-processing.
-    public boolean open(){
-        if (!raw.open())
-        {
+    public boolean open() {
+        if (!raw.open()) {
             return false;
         }
 
@@ -44,12 +42,9 @@ public class ExternalSort extends Operator{
         this.sortedRunsFile = new ArrayList<>();
         this.comparator = new TupleSortComparator(this.raw.getSchema());
         // JUST FOR TESTING
-        if (raw.getSchema() == null)
-        {
+        if (raw.getSchema() == null) {
             this.TupleSize = 4;
-        }
-        else
-        {
+        } else {
             this.TupleSize = this.raw.getSchema().getTupleSize();
         }
         System.out.println("CURRENT PAGEE SIZE: " + Batch.getPageSize());
@@ -65,12 +60,10 @@ public class ExternalSort extends Operator{
         while (batchCurrent != null) {
             System.out.println("Generate Sorted run");
             ArrayList<Batch> run = new ArrayList<>();
-            for (int i=0; i<this.bufferNum; i++)
-            {
-                if (batchCurrent == null){
+            for (int i=0; i<this.bufferNum; i++) {
+                if (batchCurrent == null) {
                     break;
-                }
-                else{
+                } else {
                     System.out.println(i);
                     this.initTupleNum += batchCurrent.size();
                     System.out.println(this.initTupleNum  + " " + batchCurrent.size());
@@ -80,8 +73,7 @@ public class ExternalSort extends Operator{
             }
             System.out.println("SIZE:" + run.size());
             List<Tuple> tuples = new ArrayList<>();
-            for (Batch batch : run)
-            {
+            for (Batch batch : run) {
                 // for each page, append tuples to a list of tuples.
                 for (int j = 0; j < batch.size(); j++) {
                     tuples.add(batch.get(j));
@@ -95,34 +87,28 @@ public class ExternalSort extends Operator{
 
             for (Tuple tuple : tuples) {
                 NewCurrentBatch.add(tuple);
-                if (NewCurrentBatch.isFull())
-                {
+                if (NewCurrentBatch.isFull()) {
                     batchesFromBuffer.add(NewCurrentBatch);
                     NewCurrentBatch = new Batch(this.BatchSize);
                 }
             }
             // last page may not always be full.
-            if (!NewCurrentBatch.isFull()) {
+            if (!NewCurrentBatch.isEmpty()) {
                  batchesFromBuffer.add(NewCurrentBatch);
             }
             // PRINT THEM FOR TESTING. DELETE WHEN NOT NEEDED.
             System.out.println("Output batches size: " + batchesFromBuffer.size());
             System.out.println("Output batches: ");
-            for (Batch batch : batchesFromBuffer)
-            {
-                for (int i=0; i < batch.size(); ++i)
-                {
+            for (Batch batch : batchesFromBuffer) {
+                for (int i=0; i < batch.size(); ++i) {
                     System.out.println(batch.get(i)._data);
                 }
             }
             System.out.println("Size of batch from buffer: " + batchesFromBuffer.size());
             // write sorted runs (NewCurrentBatch) to temp file.
-           if (batchesFromBuffer.size() <= 1)
-           {
+           if (batchesFromBuffer.size() <= 1) {
                System.out.println("NOT writing files");
-           }
-           else
-           {
+           } else {
                File tempBatchFile = write_file(batchesFromBuffer);
                this.sortedRunsFile.add(tempBatchFile);
            }
@@ -134,38 +120,33 @@ public class ExternalSort extends Operator{
         return true;
     }
 
-    private File write_file(List<Batch> batchesToWrite)
-    {
-        try{
+    private File write_file(List<Batch> batchesToWrite) {
+        try {
             File tempBatchFile = new File("ExternalSort" +
                     this.instance_no +
                     "-" + this.roundnum +
                     "-" + this.filenum);
 
             ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(tempBatchFile));
-            for (Batch batch : batchesToWrite){
+            for (Batch batch : batchesToWrite) {
                 out.writeObject(batch);
             }
             this.filenum++;
             // initialize files for temp batches
             out.close();
             return tempBatchFile;
-        } catch(IOException e)
-        {
+        } catch(IOException e) {
             System.out.println("Error in writing external sort batches to files");
         }
         return null;
     }
 
-    private void addRun(Batch run, File location)
-    {
-        try
-        {
+    private void addRun(Batch run, File location) {
+        try {
             ObjectOutputStream out = new ObjectOutputStream( new FileOutputStream(location, true));
             out.writeObject(run);
             out.close();
-        } catch (IOException e)
-        {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -173,8 +154,7 @@ public class ExternalSort extends Operator{
 
     private void MergeRuns() {
         int AvailableBuffers = this.bufferNum - 1;
-        while (this.sortedRunsFile.size() > 1)
-        {
+        while (this.sortedRunsFile.size() > 1) {
             List<File> SortedRunsThisRound = new ArrayList<>();
             for (int s = 0; s * AvailableBuffers < this.sortedRunsFile.size(); s++) {
                 int end = min((s + 1) * AvailableBuffers, sortedRunsFile.size());
@@ -182,8 +162,7 @@ public class ExternalSort extends Operator{
                 File resultantRun = MergeSortedRuns(ExtractRuns, AvailableBuffers);
                 SortedRunsThisRound.add(resultantRun);
             }
-            for (File file : this.sortedRunsFile)
-            {
+            for (File file : this.sortedRunsFile) {
                 file.delete();
             }
 
@@ -195,119 +174,102 @@ public class ExternalSort extends Operator{
     // input: files of sorted runs, each with a certain number of batches.
     // output: one single file of merged runs.
     // STILL NOT WORKING.
-    private File MergeSortedRuns (List<File> sortedRuns, int AvailableBuffers)
-    {
+    private File MergeSortedRuns(List<File> sortedRuns, int AvailableBuffers) {
         File MergedRunFile = null;
-        if (sortedRuns.isEmpty())
-        {
+        if (sortedRuns.isEmpty()) {
             return null;
         }
-        else {
-            ArrayList<Batch> inputBatches = new ArrayList<>();
-            List<ObjectInputStream> inputs = new ArrayList<>();
-            for (File file : sortedRuns)
-            {
-                try{
-                    ObjectInputStream input = new ObjectInputStream(new FileInputStream(file));
-                    inputs.add(input);
-                    Batch batch = null;
-                    try {
-                        batch = (Batch) input.readObject();
-                    } catch (ClassNotFoundException e)
-                    {
-                        e.printStackTrace();
-                    }
-                    inputBatches.add(batch);
-                } catch (IOException e) {
-                    System.out.println("Error reading file");
+
+        ArrayList<Batch> inputBatches = new ArrayList<>();
+        List<ObjectInputStream> inputs = new ArrayList<>();
+        for (File file : sortedRuns) {
+            try {
+                ObjectInputStream input = new ObjectInputStream(new FileInputStream(file));
+                inputs.add(input);
+                Batch batch = null;
+                try {
+                    batch = (Batch) input.readObject();
+                } catch (ClassNotFoundException e) {
+                    e.printStackTrace();
                 }
+                inputBatches.add(batch);
+            } catch (IOException e) {
+                System.out.println("Error reading file");
             }
-            // result stores here.
-            Batch outputBuffer = new Batch(this.BatchSize);
+        }
+        // result stores here.
+        Batch outputBuffer = new Batch(this.BatchSize);
 
-            int[] tuple_index = new int[AvailableBuffers];
-            int largest_batch_index = 0;
+        int[] tuple_index = new int[AvailableBuffers];
+        int largest_batch_index = 0;
 
-            ArrayList<Batch> inputBuffer = new ArrayList<>();
-            // preload some batches into the inputBuffer
-            for (int i=0; i<min(AvailableBuffers, inputBatches.size()); i++)
-            {
-                inputBuffer.add(inputBatches.get(i));
-                inputBatches.remove(i);
-            }
+        ArrayList<Batch> inputBuffer = new ArrayList<>();
+        // preload some batches into the inputBuffer
+        for (int i=0; i<min(AvailableBuffers, inputBatches.size()); i++) {
+            inputBuffer.add(inputBatches.get(i));
+            inputBatches.remove(i);
+        }
 
-            while(true){
-                Tuple smallest = null;
-                int smallest_index = 0;
-                // check pages in buffer to get smallest
-                for (int i=0; i<=inputBuffer.size(); i++)
-                {
-                    int tuple_location = tuple_index[i];
+        while(true) {
+            Tuple smallest = null;
+            int smallest_index = 0;
+            // check pages in buffer to get smallest
+            for (int i=0; i<=inputBuffer.size(); i++) {
+                int tuple_location = tuple_index[i];
 
-                    if(inputBuffer.get(i) != null)
-                    {
-                        Tuple tuple = inputBuffer.get(i).get(tuple_location);
-                        if(smallest == null || comparator.compare(tuple, smallest) < 0)
-                        {
-                            smallest = tuple;
-                            smallest_index = i;
-                        }
-                    }
-                }
-                if (smallest == null)
-                {
-                   break;
-                }
-                else {
-                    // move to the second index
-                    tuple_index[smallest_index] += 1;
-
-                    // check whether all the tuples are read.
-                    if (tuple_index[smallest_index] >= inputBuffer.get(smallest_index).capacity())
-                    {
-                        if (inputBatches.size() >= 1)
-                        {
-                            // 'load' another batch into the buffer.
-                            inputBuffer.remove(smallest_index);
-                            inputBuffer.add(inputBatches.get(largest_batch_index));
-                        }
-                        else
-                        {
-                            inputBuffer.remove(smallest_index);
-                            if (inputBuffer.size() < 2)
-                            {
-                                break;
-                            }
-                        }
-                        tuple_index[smallest_index] = 0;
-                    }
-                    outputBuffer.add(smallest);
-                    if (outputBuffer.isFull())
-                    {
-                        if (MergedRunFile == null)
-                        {
-                            // create a merge file
-                            MergedRunFile = write_file(Arrays.asList(outputBuffer));
-                        }
-                        else
-                        {
-                            addRun(outputBuffer, MergedRunFile);
-                        }
-                        outputBuffer.clear();
+                if(inputBuffer.get(i) != null) {
+                    Tuple tuple = inputBuffer.get(i).get(tuple_location);
+                    if(smallest == null || comparator.compare(tuple, smallest) < 0) {
+                        smallest = tuple;
+                        smallest_index = i;
                     }
                 }
             }
-            // check for remaining inputs?
-            if (!outputBuffer.isEmpty())
+            if (smallest == null) {
+               break;
+            }
+            else {
+                // move to the second index
+                tuple_index[smallest_index] += 1;
+
+                // check whether all the tuples are read.
+                if (tuple_index[smallest_index] >= inputBuffer.get(smallest_index).capacity()) {
+                    if (inputBatches.size() >= 1) {
+                        // 'load' another batch into the buffer.
+                        inputBuffer.remove(smallest_index);
+                        inputBuffer.add(inputBatches.get(largest_batch_index));
+                    } else {
+                        inputBuffer.remove(smallest_index);
+                        if (inputBuffer.size() < 2) {
+                            break;
+                        }
+                    }
+                    tuple_index[smallest_index] = 0;
+                }
+                outputBuffer.add(smallest);
+                if (outputBuffer.isFull()) {
+                    if (MergedRunFile == null) {
+                        // create a merge file
+                        MergedRunFile = write_file(Arrays.asList(outputBuffer));
+                    }
+                    else
+                    {
+                        addRun(outputBuffer, MergedRunFile);
+                    }
+                    outputBuffer.clear();
+                }
+            }
+        }
+        // check for remaining inputs?
+        if (!outputBuffer.isEmpty())
+        {
+            if (MergedRunFile == null)
             {
-                if (MergedRunFile == null)
-                {
-                    MergedRunFile = write_file(Arrays.asList(outputBuffer));
-                }
-                else
-                {
-                    addRun(outputBuffer, MergedRunFile);
-                }
+                MergedRunFile = write_file(Arrays.asList(outputBuffer));
+            }
+            else
+            {
+                addRun(outputBuffer, MergedRunFile);
             }
         }
         return MergedRunFile;
