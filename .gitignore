@@ -3,3 +3,4 @@ testcases/*.stat
 testcases/*.tbl
 testcases/*.txt
 testcases/*.out
+.idea/*

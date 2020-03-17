@@ -100,7 +100,7 @@ public class ExternalSort extends Operator{
             }
             // last page may not always be full.
             if (!NewCurrentBatch.isEmpty()) {
-                batchesFromBuffer.add(NewCurrentBatch);
+                 batchesFromBuffer.add(NewCurrentBatch);
             }
             // PRINT THEM FOR TESTING. DELETE WHEN NOT NEEDED.
             System.out.println("Output batches size: " + batchesFromBuffer.size());
@@ -112,12 +112,12 @@ public class ExternalSort extends Operator{
             }
             System.out.println("Size of batch from buffer: " + batchesFromBuffer.size());
             // write sorted runs (NewCurrentBatch) to temp file.
-            if (batchesFromBuffer.size() <= 1) {
-                System.out.println("NOT writing files");
-            } else {
-                File tempBatchFile = writeFile(batchesFromBuffer);
-                this.sortedRunsFile.add(tempBatchFile);
-            }
+           if (batchesFromBuffer.size() <= 1) {
+               System.out.println("NOT writing files");
+           } else {
+               File tempBatchFile = writeFile(batchesFromBuffer);
+               this.sortedRunsFile.add(tempBatchFile);
+           }
         }
         // end of phrase one
         // phrase two, merge sort implementation
@@ -180,7 +180,6 @@ public class ExternalSort extends Operator{
 
     // input: files of sorted runs, each with a certain number of batches.
     // output: one single file of merged runs.
-    // STILL NOT WORKING.
     private File mergeSortedRuns(List<File> sortedRuns, int numOfMergeRuns, int numOfMerges) {
         int numOfInputBuff = this.bufferNum - 1;
         if (sortedRuns.isEmpty()) {
@@ -263,81 +262,6 @@ public class ExternalSort extends Operator{
             }
         }
         return resultFile;
-
-
-//        int[] tuple_index = new int[numOfInputBuff];
-//        int largest_batch_index = 0;
-//
-//        ArrayList<Batch> inputBuffer = new ArrayList<>();
-//        // preload some batches into the inputBuffer
-//        for (int i=0; i<min(numOfInputBuff, inputBatches.size()); i++) {
-//            inputBuffer.add(inputBatches.get(i));
-//            inputBatches.remove(i);
-//        }
-//
-//        while(true) {
-//            Tuple smallest = null;
-//            int smallest_index = 0;
-//            // check pages in buffer to get smallest
-//            for (int i=0; i<=inputBuffer.size(); i++) {
-//                int tuple_location = tuple_index[i];
-//
-//                if(inputBuffer.get(i) != null) {
-//                    Tuple tuple = inputBuffer.get(i).get(tuple_location);
-//                    if(smallest == null || comparator.compare(tuple, smallest) < 0) {
-//                        smallest = tuple;
-//                        smallest_index = i;
-//                    }
-//                }
-//            }
-//            if (smallest == null) {
-//               break;
-//            }
-//            else {
-//                // move to the second index
-//                tuple_index[smallest_index] += 1;
-//
-//                // check whether all the tuples are read.
-//                if (tuple_index[smallest_index] >= inputBuffer.get(smallest_index).capacity()) {
-//                    if (inputBatches.size() >= 1) {
-//                        // 'load' another batch into the buffer.
-//                        inputBuffer.remove(smallest_index);
-//                        inputBuffer.add(inputBatches.get(largest_batch_index));
-//                    } else {
-//                        inputBuffer.remove(smallest_index);
-//                        if (inputBuffer.size() < 2) {
-//                            break;
-//                        }
-//                    }
-//                    tuple_index[smallest_index] = 0;
-//                }
-//                outputBuffer.add(smallest);
-//                if (outputBuffer.isFull()) {
-//                    if (MergedRunFile == null) {
-//                        // create a merge file
-//                        MergedRunFile = write_file(Arrays.asList(outputBuffer));
-//                    }
-//                    else
-//                    {
-//                        addRun(outputBuffer, MergedRunFile);
-//                    }
-//                    outputBuffer.clear();
-//                }
-//            }
-//        }
-//        // check for remaining inputs?
-//        if (!outputBuffer.isEmpty())
-//        {
-//            if (MergedRunFile == null)
-//            {
-//                MergedRunFile = write_file(Arrays.asList(outputBuffer));
-//            }
-//            else
-//            {
-//                addRun(outputBuffer, MergedRunFile);
-//            }
-//        }
-//        return MergedRunFile;
     }
 
     protected Batch nextBatchFromStream(ObjectInputStream stream) {
