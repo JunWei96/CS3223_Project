@@ -21,12 +21,19 @@ public class ExternalSort extends Operator{
     private int BatchSize;
     private Comparator<Tuple> comparator;
     private List<File> sortedRunsFile;
+    private ArrayList<Integer> index_sort;
 
-    public ExternalSort(Operator raw_operator, int Buffernum) {
+    public ExternalSort(Operator raw_operator, int Buffernum, ArrayList<Integer> index_sort_in) {
         super(OpType.SORT);
         this.instance_no = num_of_ins;
         this.raw = raw_operator;
         this.bufferNum = Buffernum;
+        this.index_sort = index_sort_in;
+    }
+
+    public List<File> GetSortedRunFile()
+    {
+        return this.sortedRunsFile;
     }
 
     @Override
@@ -39,7 +46,7 @@ public class ExternalSort extends Operator{
         this.filenum = 0;
         this.roundnum = 0;
         this.sortedRunsFile = new ArrayList<>();
-        this.comparator = new TupleSortComparator(this.raw.getSchema());
+        this.comparator = new TupleSortComparator(this.raw.getSchema(), this.index_sort);
         // JUST FOR TESTING
         if (raw.getSchema() == null) {
             this.TupleSize = 4;
@@ -150,7 +157,6 @@ public class ExternalSort extends Operator{
         }
     }
 
-
     private void mergeRuns() {
         int AvailableBuffers = this.bufferNum - 1;
         int numOfMergeRuns = 0;
@@ -174,7 +180,6 @@ public class ExternalSort extends Operator{
 
     // input: files of sorted runs, each with a certain number of batches.
     // output: one single file of merged runs.
-    // STILL NOT WORKING.
     private File mergeSortedRuns(List<File> sortedRuns, int numOfMergeRuns, int numOfMerges) {
         int numOfInputBuff = this.bufferNum - 1;
         if (sortedRuns.isEmpty()) {
@@ -230,8 +235,9 @@ public class ExternalSort extends Operator{
                 continue;
             }
             while (!batch.isEmpty()) {
-                Tuple tuple = batch.remove(0);
+                Tuple tuple = batch.get(0);
                 inputTuples.add(tuple);
+                batch.remove(0);
             }
         }
         inputBatches.clear();
@@ -256,83 +262,7 @@ public class ExternalSort extends Operator{
             }
         }
         return resultFile;
-
-
-//        int[] tuple_index = new int[numOfInputBuff];
-//        int largest_batch_index = 0;
-//
-//        ArrayList<Batch> inputBuffer = new ArrayList<>();
-//        // preload some batches into the inputBuffer
-//        for (int i=0; i<min(numOfInputBuff, inputBatches.size()); i++) {
-//            inputBuffer.add(inputBatches.get(i));
-//            inputBatches.remove(i);
-//        }
-//
-//        while(true) {
-//            Tuple smallest = null;
-//            int smallest_index = 0;
-//            // check pages in buffer to get smallest
-//            for (int i=0; i<=inputBuffer.size(); i++) {
-//                int tuple_location = tuple_index[i];
-//
-//                if(inputBuffer.get(i) != null) {
-//                    Tuple tuple = inputBuffer.get(i).get(tuple_location);
-//                    if(smallest == null || comparator.compare(tuple, smallest) < 0) {
-//                        smallest = tuple;
-//                        smallest_index = i;
-//                    }
-//                }
-//            }
-//            if (smallest == null) {
-//               break;
-//            }
-//            else {
-//                // move to the second index
-//                tuple_index[smallest_index] += 1;
-//
-//                // check whether all the tuples are read.
-//                if (tuple_index[smallest_index] >= inputBuffer.get(smallest_index).capacity()) {
-//                    if (inputBatches.size() >= 1) {
-//                        // 'load' another batch into the buffer.
-//                        inputBuffer.remove(smallest_index);
-//                        inputBuffer.add(inputBatches.get(largest_batch_index));
-//                    } else {
-//                        inputBuffer.remove(smallest_index);
-//                        if (inputBuffer.size() < 2) {
-//                            break;
-//                        }
-//                    }
-//                    tuple_index[smallest_index] = 0;
-//                }
-//                outputBuffer.add(smallest);
-//                if (outputBuffer.isFull()) {
-//                    if (MergedRunFile == null) {
-//                        // create a merge file
-//                        MergedRunFile = write_file(Arrays.asList(outputBuffer));
-//                    }
-//                    else
-//                    {
-//                        addRun(outputBuffer, MergedRunFile);
-//                    }
-//                    outputBuffer.clear();
-//                }
-//            }
-//        }
-//        // check for remaining inputs?
-//        if (!outputBuffer.isEmpty())
-//        {
-//            if (MergedRunFile == null)
-//            {
-//                MergedRunFile = write_file(Arrays.asList(outputBuffer));
-//            }
-//            else
-//            {
-//                addRun(outputBuffer, MergedRunFile);
-//            }
-//        }
-//        return MergedRunFile;
     }
-
 
     protected Batch nextBatchFromStream(ObjectInputStream stream) {
         try {
@@ -352,18 +282,22 @@ public class ExternalSort extends Operator{
 
     class TupleSortComparator implements Comparator<Tuple>{
         private Schema schema;
-        TupleSortComparator(Schema in_schema) {
+        private ArrayList<Integer> index_sort;
+        TupleSortComparator(Schema in_schema, ArrayList<Integer> index_sort_in) {
+            this.index_sort = index_sort_in;
             this.schema = in_schema;
         }
 
         @Override
         public int compare(Tuple firstTuple, Tuple secondTuple) {
-            for (int index = 0; index < firstTuple._data.size(); index++) {
+            for (int index: this.index_sort)
+            {
                 int compareValue = Tuple.compareTuples(firstTuple, secondTuple, index);
                 if (compareValue != 0) {
                     return compareValue;
                 }
             }
+
             return 0;
         }
     }
