@@ -9,7 +9,7 @@ import java.util.List;
 import qp.utils.Condition;
 
 
-class SortMerge extends Join {
+class SortMergeJoin extends Join {
     private int batchsize;
     private ExternalSort leftsort;
     private ExternalSort rightsort;
@@ -17,7 +17,7 @@ class SortMerge extends Join {
     private ArrayList<Integer> leftindex;
     private ArrayList<Integer> rightindex;
 
-    public SortMerge(Join jn) {
+    public SortMergeJoin(Join jn) {
         super(jn.getLeft(), jn.getRight(), jn.getCondition(), jn.getOpType());
         schema = jn.getSchema();
         jointype = jn.getJoinType();

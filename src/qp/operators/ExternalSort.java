@@ -10,22 +10,18 @@ import java.util.*;
 import static java.lang.Math.min;
 
 public class ExternalSort extends Operator{
-    private int instance_no;
-    private static int num_of_ins = 0;
     private Operator raw;
     private int bufferNum;
     private int filenum;
     private int roundnum;
-    private int initTupleNum;
-    private int TupleSize;
     private int BatchSize;
     private Comparator<Tuple> comparator;
     private List<File> sortedRunsFile;
     private ArrayList<Integer> index_sort;
+    private ObjectInputStream resultStream;
 
     public ExternalSort(Operator raw_operator, int Buffernum, ArrayList<Integer> index_sort_in) {
         super(OpType.SORT);
-        this.instance_no = num_of_ins;
         this.raw = raw_operator;
         this.bufferNum = Buffernum;
         this.index_sort = index_sort_in;
@@ -46,20 +42,21 @@ public class ExternalSort extends Operator{
         this.filenum = 0;
         this.roundnum = 0;
         this.sortedRunsFile = new ArrayList<>();
-        this.comparator = new TupleSortComparator(this.raw.getSchema(), this.index_sort);
+        this.comparator = new TupleSortComparator(this.index_sort);
         // JUST FOR TESTING
+        int tupleSize;
         if (raw.getSchema() == null) {
-            this.TupleSize = 4;
+            tupleSize = 4;
         } else {
-            this.TupleSize = this.raw.getSchema().getTupleSize();
+            tupleSize = this.raw.getSchema().getTupleSize();
         }
         System.out.println("CURRENT PAGEE SIZE: " + Batch.getPageSize());
-        this.BatchSize = Batch.getPageSize()/this.TupleSize;
+        this.BatchSize = Batch.getPageSize()/ tupleSize;
 
         // current batch
         Batch batchCurrent = this.raw.next();
 
-        this.initTupleNum = 0;
+        int initTupleNum = 0;
 
         // put all the batches in an array list of batch
         // generate sorted runs
@@ -71,8 +68,8 @@ public class ExternalSort extends Operator{
                     break;
                 } else {
                     System.out.println(i);
-                    this.initTupleNum += batchCurrent.size();
-                    System.out.println(this.initTupleNum  + " " + batchCurrent.size());
+                    initTupleNum += batchCurrent.size();
+                    System.out.println(initTupleNum + " " + batchCurrent.size());
                     run.add(batchCurrent);
                     batchCurrent = this.raw.next();
                 }
@@ -123,13 +120,41 @@ public class ExternalSort extends Operator{
         // phrase two, merge sort implementation
         mergeRuns();
 
+        // At the end, after the merging process, we should only have 1 run left.
+        if (sortedRunsFile.size() != 1) {
+            return false;
+        }
+
+        try {
+            resultStream = new ObjectInputStream(new FileInputStream(sortedRunsFile.get(0)));
+        } catch (IOException e) {
+            System.out.println("IO Error when writing sorted file onto stream");
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public Batch next() {
+        return nextBatchFromStream(resultStream);
+    }
+
+    @Override
+    public boolean close() {
+        try {
+            for (File file : sortedRunsFile) {
+                file.delete();
+            }
+            resultStream.close();
+        } catch (IOException e) {
+            System.out.println("Error in closing result file stream.");
+        }
         return true;
     }
 
     private File writeFile(List<Batch> batchesToWrite) {
         try {
             File tempBatchFile = new File("ExternalSort" +
-                    this.instance_no +
                     "-" + this.roundnum +
                     "-" + this.filenum);
 
@@ -145,16 +170,6 @@ public class ExternalSort extends Operator{
             System.out.println("Error in writing external sort batches to files");
         }
         return null;
-    }
-
-    private void addRun(Batch run, File location) {
-        try {
-            ObjectOutputStream out = new ObjectOutputStream( new FileOutputStream(location, true));
-            out.writeObject(run);
-            out.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 
     private void mergeRuns() {
@@ -281,11 +296,9 @@ public class ExternalSort extends Operator{
     }
 
     class TupleSortComparator implements Comparator<Tuple>{
-        private Schema schema;
         private ArrayList<Integer> index_sort;
-        TupleSortComparator(Schema in_schema, ArrayList<Integer> index_sort_in) {
+        TupleSortComparator(ArrayList<Integer> index_sort_in) {
             this.index_sort = index_sort_in;
-            this.schema = in_schema;
         }
 
         @Override
