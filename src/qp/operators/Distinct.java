@@ -6,20 +6,42 @@ import qp.utils.Tuple;
 import java.util.ArrayList;
 
 public class Distinct extends Operator {
+    Operator base;
     Batch outbatch;
     Batch inbatch;
 
     int batchsize;                  // Number of tuples per out batch
 
     Tuple uniqueTuple;
-    Operator sortedOperator;
-    ArrayList<Integer> sortIndexes;
+    ExternalSort sortedOperator;
+    ExternalSort.TupleSortComparator comparator;
 
     boolean eos;                   // Whether end of stream is reached
 
-    public Distinct(Operator rawOperator, int numOfBuffer, ArrayList<Integer> sortIndexes) {
+    public Distinct(Operator base) {
         super(OpType.DISTINCT);
-        sortedOperator =  new ExternalSort(rawOperator, numOfBuffer, sortIndexes);
+        this.base = base;
+    }
+
+    public Distinct(Operator base, int numOfBuffer) {
+        super(OpType.DISTINCT);
+        this.base = base;
+        sortedOperator = new ExternalSort(base, numOfBuffer);
+        comparator = new ExternalSort.TupleSortComparator(sortedOperator.getAttributeList());
+    }
+
+    public Operator getBase() {
+        return base;
+    }
+
+    public void setOperation(Operator base, int numBuff) {
+        this.base = base;
+        sortedOperator = new ExternalSort(base, numBuff);
+        comparator = new ExternalSort.TupleSortComparator(sortedOperator.getAttributeList());
+    }
+
+    public void setBase(Operator base) {
+        this.base = base;
     }
 
     @Override
@@ -56,7 +78,7 @@ public class Distinct extends Operator {
                 Tuple currentTuple = inbatch.get(i);
                 inbatch.remove(i);
                 // uniqueTuple occurs at the start. OR when detect another diff tuple.
-                if (uniqueTuple == null || compareTuple(uniqueTuple, currentTuple, sortIndexes) != 0) {
+                if (uniqueTuple == null || comparator.compare(uniqueTuple, currentTuple) != 0) {
                     outbatch.add(currentTuple);
                     uniqueTuple = currentTuple;
                 }
