@@ -9,7 +9,7 @@ import java.util.List;
 import qp.utils.Condition;
 
 
-class SortMergeJoin extends Join {
+public class SortMergeJoin extends Join {
     private int batchsize;
     private ExternalSort leftsort;
     private ExternalSort rightsort;

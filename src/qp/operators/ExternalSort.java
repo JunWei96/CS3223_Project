@@ -1,7 +1,7 @@
 package qp.operators;
 
+import qp.utils.Attribute;
 import qp.utils.Batch;
-import qp.utils.Schema;
 import qp.utils.Tuple;
 
 import java.io.*;
@@ -10,21 +10,27 @@ import java.util.*;
 import static java.lang.Math.min;
 
 public class ExternalSort extends Operator{
-    private Operator raw;
+    private Operator base;
     private int bufferNum;
     private int filenum;
     private int roundnum;
-    private int BatchSize;
+    private int batchSize;
     private Comparator<Tuple> comparator;
     private List<File> sortedRunsFile;
-    private ArrayList<Integer> index_sort;
     private ObjectInputStream resultStream;
+    private ArrayList<Integer> attrIndex;
 
-    public ExternalSort(Operator raw_operator, int Buffernum, ArrayList<Integer> index_sort_in) {
+    public ExternalSort(Operator base, int Buffernum) {
         super(OpType.SORT);
-        this.raw = raw_operator;
+        this.base = base;
         this.bufferNum = Buffernum;
-        this.index_sort = index_sort_in;
+    }
+
+    public ExternalSort(Operator base, int Buffernum, ArrayList<Integer> attrIndex) {
+        super(OpType.SORT);
+        this.base = base;
+        this.bufferNum = Buffernum;
+        this.attrIndex = attrIndex;
     }
 
     public List<File> GetSortedRunFile()
@@ -32,90 +38,36 @@ public class ExternalSort extends Operator{
         return this.sortedRunsFile;
     }
 
+    public Operator getBase() {
+        return base;
+    }
+
+    public void setBase(Operator base) {
+        this.base = base;
+    }
+
     @Override
     // open() for pre-processing.
     public boolean open() {
-        if (!raw.open()) {
+        if (!base.open()) {
             return false;
         }
 
         this.filenum = 0;
         this.roundnum = 0;
         this.sortedRunsFile = new ArrayList<>();
-        this.comparator = new TupleSortComparator(this.index_sort);
+        this.comparator = new TupleSortComparator(getAttributeList());
         // JUST FOR TESTING
         int tupleSize;
-        if (raw.getSchema() == null) {
+        if (base.getSchema() == null) {
             tupleSize = 4;
         } else {
-            tupleSize = this.raw.getSchema().getTupleSize();
+            tupleSize = this.base.getSchema().getTupleSize();
         }
         System.out.println("CURRENT PAGEE SIZE: " + Batch.getPageSize());
-        this.BatchSize = Batch.getPageSize()/ tupleSize;
+        this.batchSize = Batch.getPageSize() / tupleSize; // num of tuples in a single batch.
 
-        // current batch
-        Batch batchCurrent = this.raw.next();
-
-        int initTupleNum = 0;
-
-        // put all the batches in an array list of batch
-        // generate sorted runs
-        while (batchCurrent != null) {
-            System.out.println("Generate Sorted run");
-            ArrayList<Batch> run = new ArrayList<>();
-            for (int i=0; i<this.bufferNum; i++) {
-                if (batchCurrent == null) {
-                    break;
-                } else {
-                    System.out.println(i);
-                    initTupleNum += batchCurrent.size();
-                    System.out.println(initTupleNum + " " + batchCurrent.size());
-                    run.add(batchCurrent);
-                    batchCurrent = this.raw.next();
-                }
-            }
-            System.out.println("SIZE:" + run.size());
-            List<Tuple> tuples = new ArrayList<>();
-            for (Batch batch : run) {
-                // for each page, append tuples to a list of tuples.
-                for (int j = 0; j < batch.size(); j++) {
-                    tuples.add(batch.get(j));
-                }
-            }
-            Collections.sort(tuples, this.comparator);
-
-            // after sorting, append back to the batches.
-            List<Batch> batchesFromBuffer = new ArrayList<>();
-            Batch NewCurrentBatch = new Batch(this.BatchSize);
-
-            for (Tuple tuple : tuples) {
-                NewCurrentBatch.add(tuple);
-                if (NewCurrentBatch.isFull()) {
-                    batchesFromBuffer.add(NewCurrentBatch);
-                    NewCurrentBatch = new Batch(this.BatchSize);
-                }
-            }
-            // last page may not always be full.
-            if (!NewCurrentBatch.isEmpty()) {
-                 batchesFromBuffer.add(NewCurrentBatch);
-            }
-            // PRINT THEM FOR TESTING. DELETE WHEN NOT NEEDED.
-            System.out.println("Output batches size: " + batchesFromBuffer.size());
-            System.out.println("Output batches: ");
-            for (Batch batch : batchesFromBuffer) {
-                for (int i=0; i < batch.size(); ++i) {
-                    System.out.println(batch.get(i)._data);
-                }
-            }
-            System.out.println("Size of batch from buffer: " + batchesFromBuffer.size());
-            // write sorted runs (NewCurrentBatch) to temp file.
-           if (batchesFromBuffer.size() <= 1) {
-               System.out.println("NOT writing files");
-           } else {
-               File tempBatchFile = writeFile(batchesFromBuffer);
-               this.sortedRunsFile.add(tempBatchFile);
-           }
-        }
+        generateSortedRuns();
         // end of phrase one
         // phrase two, merge sort implementation
         mergeRuns();
@@ -132,6 +84,19 @@ public class ExternalSort extends Operator{
             return false;
         }
         return true;
+    }
+
+    public ArrayList<Integer> getAttributeList() {
+        if (this.attrIndex != null) {
+            return attrIndex;
+        } else {
+            ArrayList<Attribute> attrSet = base.getSchema().getAttList();
+            ArrayList<Integer> result = new ArrayList<>();
+            for (Attribute attr : attrSet) {
+                result.add(base.getSchema().indexOf(attr));
+            }
+            return result;
+        }
     }
 
     @Override
@@ -170,6 +135,64 @@ public class ExternalSort extends Operator{
             System.out.println("Error in writing external sort batches to files");
         }
         return null;
+    }
+
+    private void generateSortedRuns() {
+        // current batch
+        Batch currentBatch = this.base.next();
+        while (currentBatch != null) {
+            // Initialize the buffer according to the amount of buffer we have.
+            ArrayList<Batch> run = new ArrayList<>();
+            for (int i = 0; i < this.bufferNum; i++) {
+                if (currentBatch == null) {
+                    break;
+                } else {
+                    run.add(currentBatch);
+                    currentBatch = this.base.next();
+                }
+            }
+
+            List<Tuple> tuples = new ArrayList<>();
+            for (Batch batch : run) {
+                // for each batch, append tuples to a list of tuples.
+                System.out.print("batch size");
+                System.out.println(batch.size()); // Why is the batch size == 0?
+                for (int j = 0; j < batch.size(); j++) {
+                    tuples.add(batch.get(j));
+                }
+            }
+            Collections.sort(tuples, this.comparator);
+
+            // after sorting, append back to the batches.
+            List<Batch> batchesFromBuffer = new ArrayList<>();
+            Batch newCurrentBatch = new Batch(this.batchSize);
+
+            for (Tuple tuple : tuples) {
+                newCurrentBatch.add(tuple);
+                if (newCurrentBatch.isFull()) {
+                    batchesFromBuffer.add(newCurrentBatch);
+                    newCurrentBatch = new Batch(this.batchSize);
+                }
+            }
+            // last page may not always be full.
+            if (!newCurrentBatch.isEmpty()) {
+                batchesFromBuffer.add(newCurrentBatch);
+            }
+
+            for (Batch batch : batchesFromBuffer) {
+                for (int i=0; i < batch.size(); ++i) {
+                    System.out.println(batch.get(i)._data);
+                }
+            }
+
+            // write sorted runs (NewCurrentBatch) to temp file.
+            if (batchesFromBuffer.size() < 1) {
+                System.out.println("NOT writing files");
+            } else {
+                File tempBatchFile = writeFile(batchesFromBuffer);
+                this.sortedRunsFile.add(tempBatchFile);
+            }
+        }
     }
 
     private void mergeRuns() {
@@ -220,7 +243,7 @@ public class ExternalSort extends Operator{
         }
 
         // A single output buffer to store the sorted tuples. When it is full, we will spill it over to file.
-        Batch outputBuffer = new Batch(this.BatchSize);
+        Batch outputBuffer = new Batch(this.batchSize);
         // The result file to store the merged sorted runs.
         File resultFile = new File("ExternalSort_sortedRuns" + "_" + numOfMergeRuns + "_" + numOfMerges);
         ObjectOutputStream resultFileStream;
@@ -258,6 +281,7 @@ public class ExternalSort extends Operator{
         inputBatches.clear();
 
         // Sort the array of tuples in desc order.
+        System.out.println("merge");
         inputTuples.sort(this.comparator.reversed());
 
         // In each iteration we pop out the smallest element and add it into the output buffer
@@ -295,7 +319,7 @@ public class ExternalSort extends Operator{
         }
     }
 
-    class TupleSortComparator implements Comparator<Tuple>{
+    static class TupleSortComparator implements Comparator<Tuple>{
         private ArrayList<Integer> index_sort;
         TupleSortComparator(ArrayList<Integer> index_sort_in) {
             this.index_sort = index_sort_in;
@@ -303,14 +327,12 @@ public class ExternalSort extends Operator{
 
         @Override
         public int compare(Tuple firstTuple, Tuple secondTuple) {
-            for (int index: this.index_sort)
-            {
+            for (int index : this.index_sort) {
                 int compareValue = Tuple.compareTuples(firstTuple, secondTuple, index);
                 if (compareValue != 0) {
                     return compareValue;
                 }
             }
-
             return 0;
         }
     }

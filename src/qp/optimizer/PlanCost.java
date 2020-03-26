@@ -73,6 +73,8 @@ public class PlanCost {
     protected long calculateCost(Operator node) {
         if (node.getOpType() == OpType.JOIN) {
             return getStatistics((Join) node);
+        } else if (node.getOpType() == OpType.DISTINCT) {
+            return getStatistics((Distinct) node);
         } else if (node.getOpType() == OpType.SELECT) {
             return getStatistics((Select) node);
         } else if (node.getOpType() == OpType.PROJECT) {
@@ -211,6 +213,14 @@ public class PlanCost {
         return outtuples;
     }
 
+    protected long getStatistics(Distinct node) {
+        long pages = calculateCost(node.getBase()) / Batch.getPageSize();
+        int numOfBuffer = BufferManager.numBuffer;
+        long distinctCost = externalSortCost(pages, numOfBuffer);
+        cost = cost + distinctCost;
+        return calculateCost(node.getBase());
+    }
+
     /**
      * The statistics file <tablename>.stat to find the statistics
      * * about that table;
@@ -290,8 +300,7 @@ public class PlanCost {
 
     protected long SMJCost(long leftPages, long rightPages, long numOfBuffers) {
         long totalPages = leftPages + rightPages;
-        return externalSortCost(leftPages, numOfBuffers) + externalSortCost(rightPages, numOfBuffers) +
-                leftPages + rightPages;
+        return externalSortCost(leftPages, numOfBuffers) + externalSortCost(rightPages, numOfBuffers) + totalPages;
     }
 
     protected long externalSortCost(long pages, long numOfBuffer) {

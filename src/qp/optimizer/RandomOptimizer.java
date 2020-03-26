@@ -69,6 +69,11 @@ public class RandomOptimizer {
                 default:
                     return node;
             }
+        } else if (node.getOpType() == OpType.DISTINCT) {
+            Distinct distinctOp = ((Distinct) node);
+            Operator base = makeExecPlan(distinctOp.getBase());
+            distinctOp.setOperation(base, BufferManager.numBuffer);
+            return node;
         } else if (node.getOpType() == OpType.SELECT) {
             Operator base = makeExecPlan(((Select) node).getBase());
             ((Select) node).setBase(base);

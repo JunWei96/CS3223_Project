@@ -103,6 +103,11 @@ public class Debug {
             PPrint(((Join) node).getRight());
             System.out.print(")");
 
+        } else if (optype == OpType.DISTINCT) {
+            System.out.print("Distinct(");
+            PPrint(((Distinct) node).getBase());
+            System.out.print(")");
+
         } else if (optype == OpType.SELECT) {
             System.out.print("Select(");
             PPrint(((Select) node).getBase());
