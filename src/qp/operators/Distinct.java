@@ -3,14 +3,12 @@ package qp.operators;
 import qp.utils.Batch;
 import qp.utils.Tuple;
 
-import java.util.ArrayList;
-
 public class Distinct extends Operator {
     Operator base;
-    Batch outbatch;
     Batch inbatch;
 
     int batchsize;                  // Number of tuples per out batch
+    int cursor;
 
     Tuple uniqueTuple;
     ExternalSort sortedOperator;
@@ -21,6 +19,7 @@ public class Distinct extends Operator {
     public Distinct(Operator base) {
         super(OpType.DISTINCT);
         this.base = base;
+        this.batchsize = Batch.getPageSize() / base.getSchema().getTupleSize();
     }
 
     public Distinct(Operator base, int numOfBuffer) {
@@ -46,9 +45,10 @@ public class Distinct extends Operator {
 
     @Override
     public boolean open() {
+        cursor = 0;
         eos = false;
-        outbatch = new Batch(batchsize);
         if (sortedOperator.open()) {
+            System.out.println("open in distinct");
             inbatch = sortedOperator.next();
             return true;
         } else {
@@ -62,8 +62,9 @@ public class Distinct extends Operator {
             return null;
         }
 
+        Batch outbatch = new Batch(batchsize);
         while (!outbatch.isFull()) {
-            if (inbatch.isEmpty()) {
+            if (cursor == 0) {
                 inbatch = sortedOperator.next();
                 if (inbatch == null) {
                     eos = true;
@@ -71,18 +72,19 @@ public class Distinct extends Operator {
                 }
             }
 
-            for (int i = 0; i < inbatch.size(); i++) {
+            for (int i = cursor; i < inbatch.size(); i++) {
+                cursor = i;
                 if (outbatch.isFull()) {
                     return outbatch;
                 }
                 Tuple currentTuple = inbatch.get(i);
-                inbatch.remove(i);
                 // uniqueTuple occurs at the start. OR when detect another diff tuple.
                 if (uniqueTuple == null || comparator.compare(uniqueTuple, currentTuple) != 0) {
                     outbatch.add(currentTuple);
                     uniqueTuple = currentTuple;
                 }
             }
+            cursor = 0;
         }
         return outbatch;
     }
@@ -90,16 +92,5 @@ public class Distinct extends Operator {
     @Override
     public boolean close() {
         return sortedOperator.close();
-    }
-
-    public int compareTuple(Tuple firstTuple, Tuple secondTuple, ArrayList<Integer> sortIndexes) {
-        for (int index : sortIndexes) {
-            int compareValue = Tuple.compareTuples(firstTuple, secondTuple, index);
-            if (compareValue != 0) {
-                return compareValue;
-            }
-        }
-
-        return 0;
     }
 }
