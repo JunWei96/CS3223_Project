@@ -96,7 +96,6 @@ public class ExternalSort extends Operator{
 
     @Override
     public Batch next() {
-        System.out.println("Next called");
         return nextBatchFromStream(resultStream);
     }
 

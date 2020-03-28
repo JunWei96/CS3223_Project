@@ -48,7 +48,6 @@ public class Distinct extends Operator {
         cursor = 0;
         eos = false;
         if (sortedOperator.open()) {
-            System.out.println("open in distinct");
             inbatch = sortedOperator.next();
             return true;
         } else {
