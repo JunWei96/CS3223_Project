@@ -6,15 +6,19 @@ package qp.optimizer;
 
 public class BufferManager {
 
-    static int numBuffer;
-    static int numJoin;
+    public static int numBuffer;
+    public static int numJoin;
 
-    static int buffPerJoin;
+    public static int buffPerJoin;
 
     public BufferManager(int numBuffer, int numJoin) {
-        this.numBuffer = numBuffer;
-        this.numJoin = numJoin;
-        buffPerJoin = numBuffer / numJoin;
+        BufferManager.numBuffer = numBuffer;
+        BufferManager.numJoin = numJoin;
+        if (numJoin == 0) {
+            buffPerJoin = 3;
+        } else {
+            buffPerJoin = numBuffer / numJoin;
+        }
     }
 
     public static int getBuffersPerJoin() {

@@ -17,6 +17,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.StringTokenizer;
 
+import static java.lang.Math.ceil;
+import static java.lang.Math.log;
+
 public class PlanCost {
 
     long cost;
@@ -70,6 +73,8 @@ public class PlanCost {
     protected long calculateCost(Operator node) {
         if (node.getOpType() == OpType.JOIN) {
             return getStatistics((Join) node);
+        } else if (node.getOpType() == OpType.DISTINCT) {
+            return getStatistics((Distinct) node);
         } else if (node.getOpType() == OpType.SELECT) {
             return getStatistics((Select) node);
         } else if (node.getOpType() == OpType.PROJECT) {
@@ -112,8 +117,8 @@ public class PlanCost {
         long leftcapacity = Math.max(1, Batch.getPageSize() / leftuplesize);
         long righttuplesize = rightschema.getTupleSize();
         long rightcapacity = Math.max(1, Batch.getPageSize() / righttuplesize);
-        long leftpages = (long) Math.ceil(((double) lefttuples) / (double) leftcapacity);
-        long rightpages = (long) Math.ceil(((double) righttuples) / (double) rightcapacity);
+        long leftpages = (long) ceil(((double) lefttuples) / (double) leftcapacity);
+        long rightpages = (long) ceil(((double) righttuples) / (double) rightcapacity);
 
         double tuples = (double) lefttuples * righttuples;
         for (Condition con : node.getConditionList()) {
@@ -132,7 +137,7 @@ public class PlanCost {
             ht.put(leftjoinAttr, mindistinct);
             ht.put(rightjoinAttr, mindistinct);
         }
-        long outtuples = (long) Math.ceil(tuples);
+        long outtuples = (long) ceil(tuples);
 
         /** Calculate the cost of the operation **/
         int joinType = node.getJoinType();
@@ -141,7 +146,16 @@ public class PlanCost {
 
         switch (joinType) {
             case JoinType.NESTEDJOIN:
-                joincost = leftpages * rightpages;
+//                joincost = 0;
+                joincost = SNLJCost(leftpages, leftuplesize, rightpages);
+                break;
+            case JoinType.BLOCKNESTED:
+//                joincost = 0;
+                joincost = BNLJCost(leftpages, rightpages, numbuff);
+                break;
+            case JoinType.SORTMERGE:
+//                joincost = 0;
+                joincost = SMJCost(leftpages, rightpages, numbuff);
                 break;
             default:
                 System.out.println("join type is not supported");
@@ -179,11 +193,11 @@ public class PlanCost {
         long outtuples;
         /** Calculate the number of tuples in result **/
         if (exprtype == Condition.EQUAL) {
-            outtuples = (long) Math.ceil((double) intuples / (double) numdistinct);
+            outtuples = (long) ceil((double) intuples / (double) numdistinct);
         } else if (exprtype == Condition.NOTEQUAL) {
-            outtuples = (long) Math.ceil(intuples - ((double) intuples / (double) numdistinct));
+            outtuples = (long) ceil(intuples - ((double) intuples / (double) numdistinct));
         } else {
-            outtuples = (long) Math.ceil(0.5 * intuples);
+            outtuples = (long) ceil(0.5 * intuples);
         }
 
         /** Modify the number of distinct values of each attribute
@@ -193,10 +207,18 @@ public class PlanCost {
         for (int i = 0; i < schema.getNumCols(); ++i) {
             Attribute attri = schema.getAttribute(i);
             long oldvalue = ht.get(attri);
-            long newvalue = (long) Math.ceil(((double) outtuples / (double) intuples) * oldvalue);
+            long newvalue = (long) ceil(((double) outtuples / (double) intuples) * oldvalue);
             ht.put(attri, outtuples);
         }
         return outtuples;
+    }
+
+    protected long getStatistics(Distinct node) {
+        long pages = calculateCost(node.getBase()) / Batch.getPageSize();
+        int numOfBuffer = BufferManager.numBuffer;
+        long distinctCost = externalSortCost(pages, numOfBuffer);
+        cost = cost + distinctCost;
+        return calculateCost(node.getBase());
     }
 
     /**
@@ -254,7 +276,7 @@ public class PlanCost {
         /** Number of tuples per page**/
         long tuplesize = schema.getTupleSize();
         long pagesize = Math.max(Batch.getPageSize() / tuplesize, 1);
-        long numpages = (long) Math.ceil((double) numtuples / (double) pagesize);
+        long numpages = (long) ceil((double) numtuples / (double) pagesize);
 
         cost = cost + numpages;
 
@@ -265,6 +287,25 @@ public class PlanCost {
             System.exit(1);
         }
         return numtuples;
+    }
+
+    protected long SNLJCost(long leftPages, long numOfRecordPerLeftPage, long rightPages) {
+        return leftPages + (leftPages * numOfRecordPerLeftPage) * rightPages;
+    }
+
+    protected long BNLJCost(long leftPages, long rightPages, long numOfBuffers) {
+        long numOfIterationsForRight = (long) ceil(rightPages / (float) numOfBuffers);
+        return leftPages + numOfIterationsForRight * rightPages;
+    }
+
+    protected long SMJCost(long leftPages, long rightPages, long numOfBuffers) {
+        long totalPages = leftPages + rightPages;
+        return externalSortCost(leftPages, numOfBuffers) + externalSortCost(rightPages, numOfBuffers) + totalPages;
+    }
+
+    protected long externalSortCost(long pages, long numOfBuffer) {
+        long numOfPasses = (1 + (long) ceil(log(ceil(pages / (double) numOfBuffer)) / log(numOfBuffer - 1)));
+        return 2 * pages * numOfPasses;
     }
 
 }
