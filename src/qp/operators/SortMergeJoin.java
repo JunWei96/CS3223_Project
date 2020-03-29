@@ -134,6 +134,13 @@ public class SortMergeJoin extends Join {
         }
         return outputBuffer;
     }
+
+    @Override
+    public boolean close() {
+        leftsort.close();
+        rightsort.close();
+        return true;
+    }
 }
 
 
