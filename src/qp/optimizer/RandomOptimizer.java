@@ -143,8 +143,8 @@ public class RandomOptimizer {
 
     protected Operator iterativeImprovement(Operator initialPlan, PlanCost costPlan) {
         Operator minCostPlan = (Operator) initialPlan.clone();
-        int STOPPING_CONDITION = 10;
-        int LOCAL_STOPPING_CONDITION = 10;
+        int STOPPING_CONDITION = 4 * numJoin;
+        int LOCAL_STOPPING_CONDITION = 16 * numJoin;
         while (STOPPING_CONDITION > 0) {
             Operator plan = (Operator) minCostPlan.clone();
             Operator randomState = getNeighbor(plan);
