@@ -20,11 +20,12 @@ public class RandomOptimizer {
     public static final int METHODCHOICE = 0;  // Selecting neighbor by changing a method for an operator
     public static final int COMMUTATIVE = 1;   // By rearranging the operators by commutative rule
     public static final int ASSOCIATIVE = 2;   // Rearranging the operators by associative rule
+    public static final int EXCHANGE = 3;
 
     /**
      * Number of altenative methods available for a node as specified above
      **/
-    public static final int NUMCHOICES = 3;
+    public static final int NUMCHOICES = 4;
 
     SQLQuery sqlquery;  // Vector of Vectors of Select + From + Where + GroupBy
     int numJoin;        // Number of joins in this query plan
@@ -106,6 +107,9 @@ public class RandomOptimizer {
             case ASSOCIATIVE:
                 neighbor = neighborAssoc(root, nodeNum);
                 break;
+            case EXCHANGE:
+                neighbor = neighborExchange(root, nodeNum);
+                break;
         }
         return neighbor;
     }
@@ -120,89 +124,75 @@ public class RandomOptimizer {
         long MINCOST = Long.MAX_VALUE;
         Operator finalPlan = null;
 
-        /** NUMITER is number of times random restart **/
-        int NUMITER;
-        if (numJoin != 0) {
-            NUMITER = 2 * numJoin;
-        } else {
-            NUMITER = 1;
+        PlanCost pc = new PlanCost();
+        Operator initPlan = rip.prepareInitialPlan();
+        modifySchema(initPlan);
+        long initCost = pc.getCost(initPlan);
+
+        System.out.println("-----------initial Plan-------------");
+        Debug.PPrint(initPlan);
+        System.out.println(initCost);
+
+        if (numJoin == 0) {
+            return initPlan;
         }
+        Operator initialStateOfAnnealing = iterativeImprovement(initPlan, pc);
+        Operator result = simulatedAnnealing(initialStateOfAnnealing, pc);
+        return result;
+    }
 
-        /** Randomly restart the gradient descent until
-         *  the maximum specified number of random restarts (NUMITER)
-         *  has satisfied
-         **/
-        for (int j = 0; j < NUMITER; ++j) {
-            Operator initPlan = rip.prepareInitialPlan();
-            modifySchema(initPlan);
-            System.out.println("-----------initial Plan-------------");
-            Debug.PPrint(initPlan);
-            PlanCost pc = new PlanCost();
-            long initCost = pc.getCost(initPlan);
-            System.out.println(initCost);
+    protected Operator iterativeImprovement(Operator initialPlan, PlanCost costPlan) {
+        Operator minCostPlan = (Operator) initialPlan.clone();
+        int STOPPING_CONDITION = 4 * numJoin;
+        int LOCAL_STOPPING_CONDITION = 16 * numJoin;
+        while (STOPPING_CONDITION > 0) {
+            Operator plan = (Operator) minCostPlan.clone();
+            Operator randomState = getNeighbor(plan);
+            while (LOCAL_STOPPING_CONDITION > 0) {
+                Operator neighbourPlan = (Operator) plan.clone();
+                Operator neighbour = getNeighbor(neighbourPlan);
+                if (costPlan.getCost(neighbour) < costPlan.getCost(randomState)) {
+                    minCostPlan = neighbour;
+                }
+                LOCAL_STOPPING_CONDITION--;
+            }
+            STOPPING_CONDITION--;
+        }
+        return minCostPlan;
+    }
 
-            boolean flag = true;
-            long minNeighborCost = initCost;   //just initialization purpose;
-            Operator minNeighbor = initPlan;  //just initialization purpose;
-            if (numJoin != 0) {
-                while (flag) {  // flag = false when local minimum is reached
-                    System.out.println("---------------while--------");
-                    Operator initPlanCopy = (Operator) initPlan.clone();
-                    minNeighbor = getNeighbor(initPlanCopy);
+    protected Operator simulatedAnnealing(Operator initialPlan, PlanCost costPlan) {
+        Operator localCostPlan = (Operator) initialPlan.clone();
+        Operator minCostPlan = (Operator) localCostPlan.clone();
 
-                    System.out.println("--------------------------neighbor---------------");
-                    Debug.PPrint(minNeighbor);
-                    pc = new PlanCost();
-                    minNeighborCost = pc.getCost(minNeighbor);
-                    System.out.println("  " + minNeighborCost);
+        double temperature = 0.1 * costPlan.getCost(minCostPlan);
+        int numTimeMinCostUnchanged = 0;
+        int EQUILIBRIUM = 16 * numJoin;
 
-                    /** In this loop we consider from the
-                     ** possible neighbors (randomly selected)
-                     ** and take the minimum among for next step
-                     **/
-                    for (int i = 1; i < 2 * numJoin; ++i) {
-                        initPlanCopy = (Operator) initPlan.clone();
-                        Operator neighbor = getNeighbor(initPlanCopy);
-                        System.out.println("------------------neighbor--------------");
-                        Debug.PPrint(neighbor);
-                        pc = new PlanCost();
-                        long neighborCost = 0;
-                        try {
-                            neighborCost = pc.getCost(neighbor);
-                        } catch (Exception e) {
-                            System.out.println("fatal error.");
-                            System.exit(0);
-                        }
-                        System.out.println(neighborCost);
-
-                        if (neighborCost < minNeighborCost) {
-                            minNeighbor = neighbor;
-                            minNeighborCost = neighborCost;
-                        }
-                    }
-                    if (minNeighborCost < initCost) {
-                        initPlan = minNeighbor;
-                        initCost = minNeighborCost;
-                    } else {
-                        minNeighbor = initPlan;
-                        minNeighborCost = initCost;
-                        flag = false;  // local minimum reached
+        while (temperature >= 1 && numTimeMinCostUnchanged < 4) {
+            while (EQUILIBRIUM > 0) {
+                Operator randomState = (Operator) localCostPlan.clone();
+                long changeInCost = costPlan.getCost(randomState) - costPlan.getCost(localCostPlan);
+                if (changeInCost <= 0) {
+                    localCostPlan = randomState;
+                }
+                if (changeInCost > 0) {
+                    double probability = Math.exp(-1 * changeInCost / temperature);
+                    if (Math.random() <= probability) {
+                        localCostPlan = randomState;
                     }
                 }
-                System.out.println("------------------local minimum--------------");
-                Debug.PPrint(minNeighbor);
-                System.out.println(" " + minNeighborCost);
+                if (costPlan.getCost(localCostPlan) < costPlan.getCost(minCostPlan)) {
+                    minCostPlan = localCostPlan;
+                    numTimeMinCostUnchanged = 0;
+                } else {
+                    numTimeMinCostUnchanged++;
+                }
+                EQUILIBRIUM--;
             }
-            if (minNeighborCost < MINCOST) {
-                MINCOST = minNeighborCost;
-                finalPlan = minNeighbor;
-            }
+            temperature *= 0.95;
         }
-        System.out.println("\n\n\n");
-        System.out.println("---------------------------Final Plan----------------");
-        Debug.PPrint(finalPlan);
-        System.out.println("  " + MINCOST);
-        return finalPlan;
+        return minCostPlan;
     }
 
     /**
@@ -224,6 +214,20 @@ public class RandomOptimizer {
             }
             node.setJoinType(joinMeth);
         }
+        return root;
+    }
+
+    /**
+     * This exchange rule will avoid the use of join commutativity which reduce the number of plateaux by adding direct
+     * paths that bypass them.
+     * As mentioned in the paper, exchange rules are equivalent to commutative then associative then commutative.
+     */
+    public Operator neighborExchange(Operator root, int joinNum) {
+        System.out.println("------------------neighbor by method exchange----------------");
+        root = neighborCommut(root, joinNum);
+        root = neighborAssoc(root, joinNum);
+        root = neighborCommut(root, joinNum);
+        modifySchema(root);
         return root;
     }
 

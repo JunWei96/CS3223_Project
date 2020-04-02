@@ -57,13 +57,8 @@ public class ExternalSort extends Operator{
         this.roundnum = 0;
         this.sortedRunsFile = new ArrayList<>();
         this.comparator = new TupleSortComparator(getAttributeList());
-        // JUST FOR TESTING
         int tupleSize;
-        if (base.getSchema() == null) {
-            tupleSize = 4;
-        } else {
-            tupleSize = this.base.getSchema().getTupleSize();
-        }
+        tupleSize = this.base.getSchema().getTupleSize();
         System.out.println("CURRENT PAGEE SIZE: " + Batch.getPageSize());
         this.batchSize = Batch.getPageSize() / tupleSize; // num of tuples in a single batch.
 
