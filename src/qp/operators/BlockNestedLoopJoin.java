@@ -23,10 +23,10 @@ public class BlockNestedLoopJoin extends Join {
     String rfname;                  // The file name where the right table is materialized
     Batch outbatch;                 // Buffer page for output
     List<Batch> leftblock
-            = new LinkedList<>();   // Linked list of (B-2) buffer pages for left input stream
+            = new ArrayList<>();   // Linked list of (B-2) buffer pages for left input stream
     ArrayList<Tuple> leftTuples
             = new ArrayList<>();    // Array list of tuples from the batches in the leftblock. Only used during join
-    // process when comparing each left batch tuple with each right batch tuple
+                                    // process when comparing each left batch tuple with each right batch tuple
     Batch rightbatch;               // Buffer page for right input stream
     ObjectInputStream in;           // File pointer to the right hand materialized file
 
@@ -89,7 +89,7 @@ public class BlockNestedLoopJoin extends Join {
              ** into a file
              **/
             filenum++;
-            rfname = "NJtemp-" + String.valueOf(filenum);
+            rfname = "BNJtemp-" + String.valueOf(filenum);
             try {
                 ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(rfname));
                 while ((rightpage = right.next()) != null) {
@@ -119,7 +119,8 @@ public class BlockNestedLoopJoin extends Join {
         /** both the left input stream has been completely scanned and the left
          **  buffer block of left input pages has been processed. End BNL Join.
          **/
-        if (eosl && leftblock.isEmpty()) {
+        if (eosl) {
+            close();
             return null;
         }
         outbatch = new Batch(batchsize);
@@ -138,6 +139,12 @@ public class BlockNestedLoopJoin extends Join {
                 load_left_block();
                 load_tuples_from_leftblock();
 
+                /** if the whole left table has been read **/
+                if (leftblock.isEmpty() || leftblock == null) {
+                    eosl = true;
+                    return outbatch;
+                }
+
                 /** Whenever a new leftblock of left input pages comes,
                  ** we have to start scanning the right table from the top
                  **/
@@ -149,11 +156,6 @@ public class BlockNestedLoopJoin extends Join {
                     System.exit(1);
                 }
 
-                /** if the whole left table has been read **/
-                if (leftblock == null) {
-                    eosl = true;
-                    return outbatch;
-                }
             }
             /** repeatedly scan rightbatch
              **
@@ -166,8 +168,8 @@ public class BlockNestedLoopJoin extends Join {
                     /** In each iteration, each tuple of the leftblock is compared with all
                      ** tuples from the rightbatch. Total no. of iterations = |left| / (numBuff - 2)
                      **/
-                    for (i = lcurs; i < leftTuples.size(); ++i) {
-                        for (j = rcurs; j < rightbatch.size(); ++j) {
+                    for (i = lcurs; i < leftTuples.size(); i++) {
+                        for (j = rcurs; j < rightbatch.size(); j++) {
                             Tuple lefttuple = leftTuples.get(i);
                             Tuple righttuple = rightbatch.get(j);
                             // compare lefttuple and righttuple to see if join conditions are satisfied
