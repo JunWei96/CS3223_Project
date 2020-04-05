@@ -146,16 +146,16 @@ public class PlanCost {
 
         switch (joinType) {
             case JoinType.NESTEDJOIN:
-//                joincost = 0;
                 joincost = SNLJCost(leftpages, leftuplesize, rightpages);
+//                joincost = 0;
                 break;
             case JoinType.BLOCKNESTED:
-//                joincost = 0;
                 joincost = BNLJCost(leftpages, rightpages, numbuff);
+//                joincost = 0;
                 break;
             case JoinType.SORTMERGE:
-//                joincost = 0;
                 joincost = SMJCost(leftpages, rightpages, numbuff);
+//                joincost = 0;
                 break;
             default:
                 System.out.println("join type is not supported");
