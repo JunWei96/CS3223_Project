@@ -11,6 +11,7 @@ import qp.utils.Batch;
 import qp.utils.Condition;
 import qp.utils.Schema;
 
+import javax.swing.*;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -50,7 +51,12 @@ public class PlanCost {
     public long getCost(Operator root) {
         cost = 0;
         isFeasible = true;
+        System.out.println("\n(PlanCost) <getCost>");
+        System.out.println("(PlanCost) <getCost> Find Plan's Optype: " + root.getOpType());
+
         numtuple = calculateCost(root);
+        System.out.println("(PlanCost) <getCost> Find numtuples: " + numtuple);
+
         if (isFeasible) {
             return cost;
         } else {
@@ -81,6 +87,9 @@ public class PlanCost {
             return getStatistics((Project) node);
         } else if (node.getOpType() == OpType.SCAN) {
             return getStatistics((Scan) node);
+        } else if (node.getOpType() == OpType.GROUPBY) {
+            System.out.println("(PlanCost) <calculateCost> Entered OpType.GROUPBY if branch");
+            return getStatistics((GroupBy) node);
         }
         System.out.println("operator is not supported");
         isFeasible = false;
@@ -220,6 +229,19 @@ public class PlanCost {
         cost = cost + distinctCost;
         return calculateCost(node.getBase());
     }
+
+    protected long getStatistics(GroupBy node) {
+        System.out.println("(Plan Cost) <getStatistics(GroupBy node)>");
+        System.out.println("(Plan Cost) <getStatistics(GroupBy node)>: " + node.getBase().getOpType());
+        long pages = calculateCost(node.getBase()) / Batch.getPageSize();
+        System.out.println("(Plan Cost) <getStatistics(GroupBy node)> Num Pages: " + pages);
+        int numOfBuffer = BufferManager.numBuffer;
+        System.out.println("(Plan Cost) <getStatistics(GroupBy node)> Num Buffers: " + numOfBuffer);
+        long groupbyCost = externalSortCost(pages, numOfBuffer);
+        System.out.println("(Plan Cost) <getStatistics(GroupBy node)> GroupBy Cost: " + groupbyCost);
+        cost = cost + groupbyCost;
+        return calculateCost(node.getBase());
+}
 
     /**
      * The statistics file <tablename>.stat to find the statistics

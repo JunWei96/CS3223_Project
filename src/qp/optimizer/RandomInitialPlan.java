@@ -47,11 +47,6 @@ public class RandomInitialPlan {
      * prepare initial plan for the query
      **/
     public Operator prepareInitialPlan() {
-        if (sqlquery.getGroupByList().size() > 0) {
-            System.err.println("GroupBy is not implemented.");
-            System.exit(1);
-        }
-
         if (sqlquery.getOrderByList().size() > 0) {
             System.err.println("Orderby is not implemented.");
             System.exit(1);
@@ -66,6 +61,11 @@ public class RandomInitialPlan {
         createProjectOp();
         if (sqlquery.isDistinct()) {
             createDistinctOp();
+        }
+
+        if (sqlquery.getGroupByList().size() > 0) {
+            System.out.println("\n(RandomInitialPlan) PrepareInitialPlan: There is GroupBy in the query");
+            createGroupByOp();
         }
 
         return root;
@@ -192,6 +192,19 @@ public class RandomInitialPlan {
         if (!projectlist.isEmpty()) {
             root = new Project(base, projectlist, OpType.PROJECT);
             Schema newSchema = base.getSchema().subSchema(projectlist);
+            root.setSchema(newSchema);
+        }
+    }
+
+    public void createGroupByOp() {
+        Operator base = root;
+        System.out.println("\n(RandomInitialPlan) <createGroupByOp> Base: " + base);
+        if (groupbylist == null)
+            groupbylist = new ArrayList<Attribute>();
+        if (!groupbylist.isEmpty()) {
+            root = new GroupBy(base, projectlist, groupbylist, OpType.GROUPBY);
+            System.out.println("\n(RandomInitialPlan) <createGroupByOp> GroupBy List: " + groupbylist);
+            Schema newSchema = base.getSchema().subSchema(groupbylist);
             root.setSchema(newSchema);
         }
     }
