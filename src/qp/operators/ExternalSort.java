@@ -20,6 +20,7 @@ public class ExternalSort extends Operator{
     private ObjectInputStream resultStream;
     private ArrayList<Integer> attrIndex;
 
+
     public ExternalSort(Operator base, int Buffernum) {
         super(OpType.SORT);
         this.base = base;
@@ -31,6 +32,17 @@ public class ExternalSort extends Operator{
         this.base = base;
         this.bufferNum = Buffernum;
         this.attrIndex = attrIndex;
+    }
+
+    public ExternalSort(Operator base, int bufferNum, ArrayList<Integer> attrIndex, int type) {
+        super(type);
+        this.base = base;
+        this.schema = base.schema;
+        this.bufferNum = bufferNum;
+        this.attrIndex = attrIndex;
+
+        int tuplesize = schema.getTupleSize();
+        this.batchSize = Batch.getPageSize() / tuplesize;
     }
 
     public List<File> GetSortedRunFile()

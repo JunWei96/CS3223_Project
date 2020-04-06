@@ -83,6 +83,10 @@ public class RandomOptimizer {
             Operator base = makeExecPlan(((Project) node).getBase());
             ((Project) node).setBase(base);
             return node;
+        } else if (node.getOpType() == OpType.GROUPBY) {
+            Operator base = makeExecPlan(((GroupBy) node).getBase());
+            ((GroupBy) node).setBase(base);
+            return node;
         } else {
             return node;
         }
@@ -119,6 +123,7 @@ public class RandomOptimizer {
      **/
     public Operator getOptimizedPlan() {
         /** get an initial plan for the given sql query **/
+        System.out.println("\n(RandomOptimizer) <getOptimizedPlan>");
         RandomInitialPlan rip = new RandomInitialPlan(sqlquery);
         numJoin = rip.getNumJoins();
         long MINCOST = Long.MAX_VALUE;
@@ -126,8 +131,12 @@ public class RandomOptimizer {
 
         PlanCost pc = new PlanCost();
         Operator initPlan = rip.prepareInitialPlan();
+        System.out.println("(RandomOptimizer) <getOptimizedPlan> Prepare Initial Plan");
         modifySchema(initPlan);
+        System.out.println("(RandomOptimizer) <getOptimizedPlan> Modify Schema of Initial Plan");
+
         long initCost = pc.getCost(initPlan);
+        System.out.println("(RandomOptimizer) <getOptimizedPlan> Calculate Initial Cost: " + initCost);
 
         System.out.println("-----------initial Plan-------------");
         Debug.PPrint(initPlan);
@@ -142,7 +151,9 @@ public class RandomOptimizer {
     }
 
     protected Operator iterativeImprovement(Operator initialPlan, PlanCost costPlan) {
+        System.out.println("\n(RandomOptimizer) <iterativeImprovement> Going to Clone Initial Plan");
         Operator minCostPlan = (Operator) initialPlan.clone();
+        System.out.println("\n(RandomOptimizer) <iterativeImprovement> Completed Cloning Initial Plan");
         int STOPPING_CONDITION = 4 * numJoin;
         int LOCAL_STOPPING_CONDITION = 16 * numJoin;
         while (STOPPING_CONDITION > 0) {
@@ -158,6 +169,7 @@ public class RandomOptimizer {
             }
             STOPPING_CONDITION--;
         }
+        System.out.println("(RandomOptimizer) <iterativeImprovement> minCostPlan: " + minCostPlan);
         return minCostPlan;
     }
 
@@ -240,6 +252,8 @@ public class RandomOptimizer {
         System.out.println("------------------neighbor by commutative---------------");
         /** find the node to be altered**/
         Join node = (Join) findNodeAt(root, joinNum);
+        System.out.println("neighborCommut left node: " + node.getLeft());
+        System.out.println("neighborCommut left node: " + node.getRight());
         Operator left = node.getLeft();
         Operator right = node.getRight();
         node.setLeft(right);
@@ -382,6 +396,8 @@ public class RandomOptimizer {
             return findNodeAt(((Select) node).getBase(), joinNum);
         } else if (node.getOpType() == OpType.PROJECT) {
             return findNodeAt(((Project) node).getBase(), joinNum);
+        } else if (node.getOpType() == OpType.GROUPBY) {
+            return findNodeAt(((GroupBy) node).getBase(), joinNum);
         } else {
             return null;
         }
@@ -406,6 +422,10 @@ public class RandomOptimizer {
             modifySchema(base);
             ArrayList attrlist = ((Project) node).getProjAttr();
             node.setSchema(base.getSchema().subSchema(attrlist));
+        } else if (node.getOpType() == OpType.GROUPBY) {
+            Operator base = ((GroupBy) node).getBase();
+            modifySchema(base);
+            node.setSchema(base.getSchema());
         }
     }
 }
