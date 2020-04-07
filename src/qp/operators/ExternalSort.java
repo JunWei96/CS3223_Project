@@ -164,11 +164,6 @@ public class ExternalSort extends Operator{
                 batchesFromBuffer.add(newCurrentBatch);
             }
 
-            System.out.println(String.format("Number of batches in buffer: %d", batchesFromBuffer.size()));
-            for (Batch batch : batchesFromBuffer) {
-                Debug.PPrint(batch);
-            }
-
             // write sorted runs (NewCurrentBatch) to temp file.
             if (batchesFromBuffer.size() < 1) {
                 System.out.println("NOT writing files");
@@ -183,7 +178,6 @@ public class ExternalSort extends Operator{
         int AvailableBuffers = this.bufferNum - 1;
         int numOfMergeRuns = 0;
 
-        System.out.println(String.format("Number of sorted runs: %d", sortedRunsFile.size()));
         while (this.sortedRunsFile.size() > 1) {
             List<File> sortedRunsThisRound = new ArrayList<>();
             for (int numOfMerges = 0; numOfMerges * AvailableBuffers < this.sortedRunsFile.size(); numOfMerges++) {
