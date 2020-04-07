@@ -169,7 +169,6 @@ public class ExternalSort extends Operator{
             if (batchesFromBuffer.size() < 1) {
                 System.out.println("NOT writing files");
             } else {
-                Debug.PPrint(batchesFromBuffer.get(0));
                 File tempBatchFile = writeFile(batchesFromBuffer);
                 this.sortedRunsFile.add(tempBatchFile);
             }
@@ -282,7 +281,6 @@ public class ExternalSort extends Operator{
 
         if (!outputBuffer.isEmpty()) {
             try {
-                Debug.PPrint(outputBuffer);
                 resultFileStream.writeObject(outputBuffer);
                 resultFileStream.reset();
             } catch (IOException e) {
