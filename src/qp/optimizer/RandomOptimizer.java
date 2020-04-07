@@ -84,8 +84,9 @@ public class RandomOptimizer {
             ((Project) node).setBase(base);
             return node;
         } else if (node.getOpType() == OpType.GROUPBY) {
-            Operator base = makeExecPlan(((GroupBy) node).getBase());
-            ((GroupBy) node).setBase(base);
+            GroupBy GroupByOp = ((GroupBy) node);
+            Operator base = makeExecPlan(GroupByOp.getBase());
+            GroupByOp.setOperation(base, BufferManager.numBuffer);
             return node;
         } else {
             return node;
