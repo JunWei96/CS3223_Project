@@ -127,8 +127,6 @@ public class RandomOptimizer {
         System.out.println("\n(RandomOptimizer) <getOptimizedPlan>");
         RandomInitialPlan rip = new RandomInitialPlan(sqlquery);
         numJoin = rip.getNumJoins();
-        long MINCOST = Long.MAX_VALUE;
-        Operator finalPlan = null;
 
         PlanCost pc = new PlanCost();
         Operator initPlan = rip.prepareInitialPlan();
