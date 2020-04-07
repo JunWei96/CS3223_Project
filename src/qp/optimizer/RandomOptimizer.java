@@ -251,6 +251,7 @@ public class RandomOptimizer {
         System.out.println("------------------neighbor by commutative---------------");
         /** find the node to be altered**/
         Join node = (Join) findNodeAt(root, joinNum);
+        System.out.println("neighborCommut node: " + node);
         System.out.println("neighborCommut left node: " + node.getLeft());
         System.out.println("neighborCommut left node: " + node.getRight());
         Operator left = node.getLeft();
@@ -395,6 +396,8 @@ public class RandomOptimizer {
             return findNodeAt(((Select) node).getBase(), joinNum);
         } else if (node.getOpType() == OpType.PROJECT) {
             return findNodeAt(((Project) node).getBase(), joinNum);
+        } else if (node.getOpType() == OpType.DISTINCT) {
+            return findNodeAt(((Distinct) node).getBase(), joinNum);
         } else if (node.getOpType() == OpType.GROUPBY) {
             return findNodeAt(((GroupBy) node).getBase(), joinNum);
         } else {
@@ -423,6 +426,10 @@ public class RandomOptimizer {
             node.setSchema(base.getSchema().subSchema(attrlist));
         } else if (node.getOpType() == OpType.GROUPBY) {
             Operator base = ((GroupBy) node).getBase();
+            modifySchema(base);
+            node.setSchema(base.getSchema());
+        } else if (node.getOpType() == OpType.DISTINCT) {
+            Operator base = ((Distinct) node).getBase();
             modifySchema(base);
             node.setSchema(base.getSchema());
         }

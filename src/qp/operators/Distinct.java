@@ -80,4 +80,11 @@ public class Distinct extends Operator {
     public boolean close() {
         return sortedOperator.close();
     }
+
+    @Override
+    public Object clone() {
+        Distinct op = new Distinct((Operator) base.clone());
+        op.setSchema(this.getSchema());
+        return op;
+    }
 }

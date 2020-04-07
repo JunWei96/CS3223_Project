@@ -11,7 +11,7 @@ import static java.lang.Math.min;
 
 public class ExternalSort extends Operator{
     private Operator base;
-    private int bufferNum;
+    public int bufferNum;
     private int filenum;
     private int batchSize; // num of tuples in a single batch.
     private Comparator<Tuple> comparator;
