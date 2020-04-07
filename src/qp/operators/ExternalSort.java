@@ -153,10 +153,10 @@ public class ExternalSort extends Operator{
             batchesFromBuffer.add(new Batch(this.batchSize));
             for (Tuple tuple : tuples) {
                 Batch lastBatchInBuffer = batchesFromBuffer.get(batchesFromBuffer.size() - 1);
-                lastBatchInBuffer.add(tuple);
                 if (lastBatchInBuffer.isFull()) {
                     batchesFromBuffer.add(new Batch(this.batchSize));
                 }
+                lastBatchInBuffer.add(tuple);
             }
 
             // last page may not always be full.
@@ -225,8 +225,9 @@ public class ExternalSort extends Operator{
         // Feed in new batch into inputBatches.
         for (int sortedRunNum = 0; sortedRunNum < sortedRuns.size(); sortedRunNum++) {
             Batch nextBatch = nextBatchFromStream(inputs.get(sortedRunNum));
-            if (nextBatch != null) {
+            while (nextBatch != null) {
                 inputBatches.add(nextBatch);
+                nextBatch = nextBatchFromStream(inputs.get(sortedRunNum));
             }
         }
 
