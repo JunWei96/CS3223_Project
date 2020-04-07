@@ -10,10 +10,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
+
 public class GroupBy extends Operator {
 
     private Operator base;                      // The table based on which the GroupBy function is acting on
     private int batchsize;                      // Number of tuples per out batch
+    private int numBuff;
 
     private ArrayList<Attribute> projectlist;   // A list of all the attributes the query wants to project
     private ArrayList<Attribute> groupbylist;   // A list of all the attributes the query wants to group by
@@ -21,13 +23,15 @@ public class GroupBy extends Operator {
     private Tuple lastTuple;
     private int[] attrIndex;
 
+    ExternalSort sortedOperator;
+    ExternalSort.TupleSortComparator comparator;
+    int cursor;
+    boolean eos;
+
 
     public GroupBy(Operator base, ArrayList<Attribute> projectlist, ArrayList<Attribute> groupbylist, int type) {
-        super(type);
+        super(OpType.GROUPBY);
         System.out.println("\n(GroupBy) <Constructor> Base: " + base);
-//        System.out.println("(GroupBy) <Constructor> GetSortedOrder: " + Arrays.toString(getSortOrder(groupbylist, base.schema)));
-//        System.out.println("(GroupBy) <Constructor> NumBuffers: " + BufferManager.getBuffersPerJoin());
-//        this.base = new ExternalSort(base, BufferManager.getBuffersPerJoin(), getSortOrder(groupbylist, base.schema), OpType.PROJECT);
         this.base = base;
         this.projectlist = projectlist;
         this.groupbylist = groupbylist;
@@ -41,8 +45,11 @@ public class GroupBy extends Operator {
         return base;
     }
 
-    public ArrayList<Attribute> getProjectlist() {
-        return projectlist;
+    public void setOperation(Operator base, int numBuff) {
+        this.base = base;
+        this.numBuff = numBuff;
+        sortedOperator = new ExternalSort(base, numBuff);
+        comparator = new ExternalSort.TupleSortComparator(sortedOperator.getAttributeList());
     }
 
     /**
@@ -78,6 +85,7 @@ public class GroupBy extends Operator {
                                     .collect(Collectors.toList());
     }
 
+    @Override
     public boolean open() {
         /** select number of tuples per batch **/
         int tuplesize = schema.getTupleSize();
@@ -97,13 +105,25 @@ public class GroupBy extends Operator {
             Attribute attr = (Attribute) projectlist.get(i);
             attrIndex[i] = baseSchema.indexOf(attr);
         }
-        return base.open();
+//        return base.open();
+        cursor = 0;
+        eos = false;
+        System.out.println("(GroupBy) <open> Before sortedOperator is opened");
+
+        if (sortedOperator.open()) {
+            System.out.println("(GroupBy) <open> Check if sortedOperator is opened");
+            Batch inbatch = sortedOperator.next();
+            return true;
+        } else {
+            return false;
+        }
     }
 
     /**
      * Read the next Batch (i.e. page) from the Operator and read all the Tuples, group them based on specified
      * group by columns, and add them to the outbatch to be written out
      * **/
+    @Override
     public Batch next() {
         Batch inbatch = base.next();
 
