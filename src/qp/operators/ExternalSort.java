@@ -302,7 +302,6 @@ public class ExternalSort extends Operator{
             System.out.println("Unable to serialize the read object.");
             return null;
         } catch (IOException e) {
-            e.printStackTrace();
             return null;
         }
     }
