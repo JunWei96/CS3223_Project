@@ -13,18 +13,17 @@ public class ExternalSort extends Operator{
     private Operator base;
     private int bufferNum;
     private int filenum;
-    private int roundnum;
-    private int batchSize;
+    private int batchSize; // num of tuples in a single batch.
     private Comparator<Tuple> comparator;
     private List<File> sortedRunsFile;
     private ObjectInputStream resultStream;
     private ArrayList<Integer> attrIndex;
 
 
-    public ExternalSort(Operator base, int Buffernum) {
+    public ExternalSort(Operator base, int bufferNum) {
         super(OpType.SORT);
         this.base = base;
-        this.bufferNum = Buffernum;
+        this.bufferNum = bufferNum;
     }
 
     public ExternalSort(Operator base, int Buffernum, ArrayList<Integer> attrIndex) {
@@ -32,17 +31,6 @@ public class ExternalSort extends Operator{
         this.base = base;
         this.bufferNum = Buffernum;
         this.attrIndex = attrIndex;
-    }
-
-    public ExternalSort(Operator base, int bufferNum, ArrayList<Integer> attrIndex, int type) {
-        super(type);
-        this.base = base;
-        this.schema = base.schema;
-        this.bufferNum = bufferNum;
-        this.attrIndex = attrIndex;
-
-        int tuplesize = schema.getTupleSize();
-        this.batchSize = Batch.getPageSize() / tuplesize;
     }
 
     public List<File> GetSortedRunFile()
@@ -66,17 +54,11 @@ public class ExternalSort extends Operator{
         }
 
         this.filenum = 0;
-        this.roundnum = 0;
         this.sortedRunsFile = new ArrayList<>();
         this.comparator = new TupleSortComparator(getAttributeList());
-        int tupleSize;
-        tupleSize = this.base.getSchema().getTupleSize();
-        System.out.println("CURRENT PAGEE SIZE: " + Batch.getPageSize());
-        this.batchSize = Batch.getPageSize() / tupleSize; // num of tuples in a single batch.
+        this.batchSize = Batch.getPageSize() / this.base.getSchema().getTupleSize();
 
         generateSortedRuns();
-        // end of phrase one
-        // phrase two, merge sort implementation
         mergeRuns();
 
         // At the end, after the merging process, we should only have 1 run left.
@@ -126,9 +108,7 @@ public class ExternalSort extends Operator{
 
     private File writeFile(List<Batch> batchesToWrite) {
         try {
-            File tempBatchFile = new File("ExternalSort" +
-                    "-" + this.roundnum +
-                    "-" + this.filenum);
+            File tempBatchFile = new File("ExternalSort" + "-" + this.filenum);
 
             ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(tempBatchFile));
             for (Batch batch : batchesToWrite) {
@@ -162,8 +142,6 @@ public class ExternalSort extends Operator{
             List<Tuple> tuples = new ArrayList<>();
             for (Batch batch : run) {
                 // for each batch, append tuples to a list of tuples.
-                System.out.print("batch size");
-                System.out.println(batch.size()); // Why is the batch size == 0?
                 for (int j = 0; j < batch.size(); j++) {
                     tuples.add(batch.get(j));
                 }
@@ -172,30 +150,26 @@ public class ExternalSort extends Operator{
 
             // after sorting, append back to the batches.
             List<Batch> batchesFromBuffer = new ArrayList<>();
-            Batch newCurrentBatch = new Batch(this.batchSize);
-
+            batchesFromBuffer.add(new Batch(this.batchSize));
             for (Tuple tuple : tuples) {
-                newCurrentBatch.add(tuple);
-                if (newCurrentBatch.isFull()) {
-                    batchesFromBuffer.add(newCurrentBatch);
-                    newCurrentBatch = new Batch(this.batchSize);
+                Batch lastBatchInBuffer = batchesFromBuffer.get(batchesFromBuffer.size() - 1);
+                lastBatchInBuffer.add(tuple);
+                if (lastBatchInBuffer.isFull()) {
+                    batchesFromBuffer.add(new Batch(this.batchSize));
                 }
-            }
-            // last page may not always be full.
-            if (!newCurrentBatch.isEmpty()) {
-                batchesFromBuffer.add(newCurrentBatch);
             }
 
-            for (Batch batch : batchesFromBuffer) {
-                for (int i=0; i < batch.size(); ++i) {
-                    System.out.println(batch.get(i)._data);
-                }
+            // last page may not always be full.
+            Batch lastBatchInBuffer = batchesFromBuffer.get(batchesFromBuffer.size() - 1);
+            if (!lastBatchInBuffer.isEmpty()) {
+                batchesFromBuffer.add(lastBatchInBuffer);
             }
 
             // write sorted runs (NewCurrentBatch) to temp file.
             if (batchesFromBuffer.size() < 1) {
                 System.out.println("NOT writing files");
             } else {
+                Debug.PPrint(batchesFromBuffer.get(0));
                 File tempBatchFile = writeFile(batchesFromBuffer);
                 this.sortedRunsFile.add(tempBatchFile);
             }
@@ -205,6 +179,7 @@ public class ExternalSort extends Operator{
     private void mergeRuns() {
         int AvailableBuffers = this.bufferNum - 1;
         int numOfMergeRuns = 0;
+
         while (this.sortedRunsFile.size() > 1) {
             List<File> sortedRunsThisRound = new ArrayList<>();
             for (int numOfMerges = 0; numOfMerges * AvailableBuffers < this.sortedRunsFile.size(); numOfMerges++) {
@@ -219,7 +194,6 @@ public class ExternalSort extends Operator{
 
             numOfMergeRuns++;
             this.sortedRunsFile = sortedRunsThisRound;
-            System.out.println(this.sortedRunsFile.size());
         }
     }
 
@@ -249,21 +223,6 @@ public class ExternalSort extends Operator{
             }
         }
 
-        // A single output buffer to store the sorted tuples. When it is full, we will spill it over to file.
-        Batch outputBuffer = new Batch(this.batchSize);
-        // The result file to store the merged sorted runs.
-        File resultFile = new File("ExternalSort_sortedRuns" + "_" + numOfMergeRuns + "_" + numOfMerges);
-        ObjectOutputStream resultFileStream;
-        try {
-            resultFileStream = new ObjectOutputStream(new FileOutputStream(resultFile, true));
-        } catch (FileNotFoundException e) {
-            System.out.println("Unable to find file for output stream.");
-            return null;
-        } catch (IOException e) {
-            System.out.println("IO error occurred while creating output stream.");
-            return null;
-        }
-
         // Feed in new batch into inputBatches.
         for (int sortedRunNum = 0; sortedRunNum < sortedRuns.size(); sortedRunNum++) {
             Batch nextBatch = nextBatchFromStream(inputs.get(sortedRunNum));
@@ -280,16 +239,29 @@ public class ExternalSort extends Operator{
                 continue;
             }
             while (!batch.isEmpty()) {
-                Tuple tuple = batch.get(0);
+                Tuple tuple = batch.remove(batch.size() - 1);
                 inputTuples.add(tuple);
-                batch.remove(0);
             }
         }
-        inputBatches.clear();
 
         // Sort the array of tuples in desc order.
-        System.out.println("merge");
         inputTuples.sort(this.comparator.reversed());
+
+
+        // A single output buffer to store the sorted tuples. When it is full, we will spill it over to file.
+        Batch outputBuffer = new Batch(this.batchSize);
+        // The result file to store the merged sorted runs.
+        File resultFile = new File("ExternalSort_sortedRuns" + "_" + numOfMergeRuns + "_" + numOfMerges);
+        ObjectOutputStream resultFileStream;
+        try {
+            resultFileStream = new ObjectOutputStream(new FileOutputStream(resultFile, true));
+        } catch (FileNotFoundException e) {
+            System.out.println("Unable to find file for output stream.");
+            return null;
+        } catch (IOException e) {
+            System.out.println("IO error occurred while creating output stream.");
+            return null;
+        }
 
         // In each iteration we pop out the smallest element and add it into the output buffer
         // Once the buffer is filled write it into disk.
@@ -307,6 +279,17 @@ public class ExternalSort extends Operator{
                 outputBuffer.clear();
             }
         }
+
+        if (!outputBuffer.isEmpty()) {
+            try {
+                Debug.PPrint(outputBuffer);
+                resultFileStream.writeObject(outputBuffer);
+                resultFileStream.reset();
+            } catch (IOException e) {
+                System.out.println("Error in writing to output file during merging.");
+                return null;
+            }
+        }
         return resultFile;
     }
 
@@ -321,7 +304,7 @@ public class ExternalSort extends Operator{
             System.out.println("Unable to serialize the read object.");
             return null;
         } catch (IOException e) {
-            System.out.println("IO error occurred while reading input stream.");
+            e.printStackTrace();
             return null;
         }
     }

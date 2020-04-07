@@ -1,0 +1,5 @@
+3
+100
+aid INTEGER 200 PK 4
+aname STRING 40 NK 80
+cruisingrange INTEGER 2000 NK 4

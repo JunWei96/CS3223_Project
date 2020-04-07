@@ -41,7 +41,7 @@ public class SortMergeJoin extends Join {
         leftsort = new ExternalSort(this.left, this.numBuff, this.common_index);
         rightsort = new ExternalSort(this.right, this.numBuff, this.common_index);
 
-        return true;
+        return left.open() && rightsort.open();
     }
 
     private List<ObjectInputStream> GetListOfInputStream(List<File> sortedruns_file)

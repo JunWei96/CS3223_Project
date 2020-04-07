@@ -22,13 +22,6 @@ public class Distinct extends Operator {
         this.batchsize = Batch.getPageSize() / base.getSchema().getTupleSize();
     }
 
-    public Distinct(Operator base, int numOfBuffer) {
-        super(OpType.DISTINCT);
-        this.base = base;
-        sortedOperator = new ExternalSort(base, numOfBuffer);
-        comparator = new ExternalSort.TupleSortComparator(sortedOperator.getAttributeList());
-    }
-
     public Operator getBase() {
         return base;
     }
@@ -47,12 +40,7 @@ public class Distinct extends Operator {
     public boolean open() {
         cursor = 0;
         eos = false;
-        if (sortedOperator.open()) {
-            inbatch = sortedOperator.next();
-            return true;
-        } else {
-            return false;
-        }
+        return sortedOperator.open();
     }
 
     @Override
