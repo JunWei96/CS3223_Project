@@ -5,3 +5,4 @@ This is a project which stimulates a query optimizer to process queries while mi
 run build.sh for Linux, build.bat for Windows, or build solution with the desired code editor such as Intellij.
 
 ## The implementations
+### 1. Block nested join
