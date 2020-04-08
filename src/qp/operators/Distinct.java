@@ -28,7 +28,7 @@ public class Distinct extends Operator {
 
     public void setOperation(Operator base, int numBuff) {
         this.base = base;
-        sortedOperator = new ExternalSort(base, numBuff);
+        sortedOperator = new ExternalSort(base, numBuff, OpType.DISTINCT);
         comparator = new ExternalSort.TupleSortComparator(sortedOperator.getAttributeList());
     }
 

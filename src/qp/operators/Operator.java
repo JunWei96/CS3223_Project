@@ -33,6 +33,11 @@ public class Operator {
 
     public boolean open() {
         System.err.println("Abstract interface cannot be used (OPEN).");
+        try {
+            throw new Exception("Error");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         System.exit(1);
         return true;
     }

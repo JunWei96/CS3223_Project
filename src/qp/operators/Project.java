@@ -59,6 +59,7 @@ public class Project extends Operator {
         int tuplesize = schema.getTupleSize();
         batchsize = Batch.getPageSize() / tuplesize;
 
+        System.out.println("(Project) Opening in project operator");
         if (!base.open()) return false;
 
         /** The following loop finds the index of the columns that

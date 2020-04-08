@@ -5,6 +5,7 @@ import qp.utils.Tuple;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import qp.utils.Condition;
 
@@ -13,126 +14,85 @@ public class SortMergeJoin extends Join {
     private int batchsize;
     private ExternalSort leftsort;
     private ExternalSort rightsort;
-    private ArrayList<Integer> common_index;
     private ArrayList<Integer> leftindex;
     private ArrayList<Integer> rightindex;
+    private ExternalSort.TupleSortComparator comparator;
+
+    private Batch outbatch;
+    private Batch leftbatch;
+    private Batch rightbatch;
+    int leftcursor = 0;
+    int rightcursor = 0;
 
     public SortMergeJoin(Join jn) {
         super(jn.getLeft(), jn.getRight(), jn.getCondition(), jn.getOpType());
+        System.out.println("Sort merge join :" + jn.getJoinType());
         schema = jn.getSchema();
         jointype = jn.getJoinType();
         numBuff = jn.getNumBuff();
     }
 
     @Override
-    public boolean open(){
+    public boolean open() {
         int tupleSize = schema.getTupleSize();
         this.batchsize = Batch.getPageSize() / tupleSize;
 
         // find index attribute of join conditions
-        for (Condition con : this.conditionList)
-        {
+        for (Condition con : this.conditionList) {
             Attribute leftattr = con.getLhs();
-            this.common_index.add(this.left.getSchema().indexOf(leftattr));
+            Attribute rightattr = (Attribute) con.getRhs();
             this.leftindex.add(left.getSchema().indexOf(leftattr));
-            this.rightindex.add(right.getSchema().indexOf(leftattr));
+            this.rightindex.add(right.getSchema().indexOf(rightattr));
         }
         // sort according to the attributes
-        leftsort = new ExternalSort(this.left, this.numBuff, this.common_index);
-        rightsort = new ExternalSort(this.right, this.numBuff, this.common_index);
+        leftsort = new ExternalSort(left, numBuff, leftindex, "left", OpType.JOIN);
+        rightsort = new ExternalSort(right, numBuff, rightindex, "right", OpType.JOIN);
 
-        return left.open() && rightsort.open();
-    }
-
-    private List<ObjectInputStream> GetListOfInputStream(List<File> sortedruns_file)
-    {
-        List<ObjectInputStream> inputs = new ArrayList<>();
-        // Generated and input stream of sorted runs.
-        for (File file : sortedruns_file) {
-            try {
-                ObjectInputStream input = new ObjectInputStream(new FileInputStream(file));
-                inputs.add(input);
-            } catch (IOException e) {
-                System.out.println("Error reading file into input stream.");
-            }
+        System.out.println("(SMJ) Opening left and right operator.");
+        if (!leftsort.open() || !rightsort.open()) {
+            return false;
         }
-        return inputs;
-    }
+        leftbatch = leftsort.next();
+        rightbatch = rightsort.next();
 
-    protected Batch nextBatchFromStream(ObjectInputStream stream) {
-        try {
-            Batch batch = (Batch) stream.readObject();
-            if (batch.isEmpty()) {
-                return null;
-            }
-            return batch;
-        } catch (ClassNotFoundException e) {
-            System.out.println("Unable to serialize the read object.");
-            return null;
-        } catch (IOException e) {
-            System.out.println("IO error occurred while reading input stream.");
-            return null;
-        }
+        return true;
     }
 
     @Override
-    public Batch next()
-    {
-        // open file input stream to read the sorted runs.
-        List<File> leftsortedfile = leftsort.GetSortedRunFile();
-        List<File> rightsortedfile = rightsort.GetSortedRunFile();
+    public Batch next() {
+        outbatch = new Batch(batchsize);
+        // Scan left until left's sort key >= right's current sort key
+         // Then scan right until right's sort key >= current left sort key
+        // When left sort key == right sort key, we at a partition where all tuples in this partition matches join condition
+        // Join them and place them in outbatch
+        // Start scanning from step 1 again.
 
-        List<ObjectInputStream> inputsleft = GetListOfInputStream(leftsortedfile);
-        List<ObjectInputStream> inputsright = GetListOfInputStream(rightsortedfile);
-
-        Batch outputBuffer = new Batch(this.batchsize);
-        // load one batch initially
-        Batch leftBatch = nextBatchFromStream(inputsleft.get(0));
-        Batch rightBatch = nextBatchFromStream(inputsright.get(0));
-
-        int leftcursor = 0;
-        int rightcursor = 0;
-
-        while(leftBatch != null && rightBatch != null)
-        {
-          while(leftcursor < this.batchsize && rightcursor < this.batchsize)
-          {
+        while(leftbatch != null && rightbatch != null) {
+          while(leftcursor < this.batchsize && rightcursor < this.batchsize) {
               // compare the data in attributes
-              Tuple lefttuple = leftBatch.get(leftcursor);
-              Tuple righttuple = rightBatch.get(rightcursor);
-              if (lefttuple.checkJoin(righttuple, leftindex, rightindex))
-              {
+              Tuple lefttuple = leftbatch.get(leftcursor);
+              Tuple righttuple = rightbatch.get(rightcursor);
+              if (lefttuple.checkJoin(righttuple, leftindex, rightindex)) {
                   Tuple outtuple = lefttuple.joinWith(righttuple);
-                  outputBuffer.add(outtuple);
-                  if (outputBuffer.isFull())
-                  {
-                      // adjust cursor, return outputBuffer
-                      if (rightcursor <= leftcursor)
-                          rightcursor++;
-                      else
-                          leftcursor++;
-                      return outputBuffer;
+                  outbatch.add(outtuple);
+                  rightcursor++;
+                  leftcursor++;
+                  if (outbatch.isFull()) {
+                      return outbatch;
                   }
               }
-              // adjust cursor
-              if (rightcursor <= leftcursor)
-                  rightcursor++;
-              else
-                  leftcursor++;
           }
           // if exit, load another batch
-          if (leftcursor >= this.batchsize)
-          {
-              leftBatch = nextBatchFromStream(inputsleft.get(0));
+          if (leftcursor >= this.batchsize) {
+              leftbatch = leftsort.next();
               leftcursor = 0;
           }
-          if (rightcursor >= this.batchsize)
-          {
-              rightBatch = nextBatchFromStream(inputsright.get(0));
+          if (rightcursor >= this.batchsize) {
+              rightbatch = rightsort.next();
               rightcursor = 0;
           }
         }
-        return outputBuffer;
+        return outbatch;
     }
 
     @Override

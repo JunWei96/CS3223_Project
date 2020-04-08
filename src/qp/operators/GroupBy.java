@@ -48,7 +48,7 @@ public class GroupBy extends Operator {
     public void setOperation(Operator base, int numBuff) {
         this.base = base;
         this.numBuff = numBuff;
-        sortedOperator = new ExternalSort(base, numBuff);
+        sortedOperator = new ExternalSort(base, numBuff, OpType.GROUPBY);
         comparator = new ExternalSort.TupleSortComparator(sortedOperator.getAttributeList());
     }
 

@@ -18,24 +18,22 @@ public class ExternalSort extends Operator{
     private List<File> sortedRunsFile;
     private ObjectInputStream resultStream;
     private ArrayList<Integer> attrIndex;
+    private String identifier;
 
 
-    public ExternalSort(Operator base, int bufferNum) {
-        super(OpType.SORT);
+    public ExternalSort(Operator base, int bufferNum, int opType) {
+        super(opType);
         this.base = base;
         this.bufferNum = bufferNum;
+        this.identifier = "";
     }
 
-    public ExternalSort(Operator base, int Buffernum, ArrayList<Integer> attrIndex) {
-        super(OpType.SORT);
+    public ExternalSort(Operator base, int Buffernum, ArrayList<Integer> attrIndex, String identifier, int opType) {
+        super(opType);
         this.base = base;
         this.bufferNum = Buffernum;
         this.attrIndex = attrIndex;
-    }
-
-    public List<File> GetSortedRunFile()
-    {
-        return this.sortedRunsFile;
+        this.identifier = identifier;
     }
 
     public Operator getBase() {
@@ -59,6 +57,7 @@ public class ExternalSort extends Operator{
         this.batchSize = Batch.getPageSize() / this.base.getSchema().getTupleSize();
 
         generateSortedRuns();
+        System.out.println("generated sorted runs");
         mergeRuns();
 
         // At the end, after the merging process, we should only have 1 run left.
@@ -67,6 +66,7 @@ public class ExternalSort extends Operator{
         }
 
         try {
+            System.out.println("Assigning result stream.");
             resultStream = new ObjectInputStream(new FileInputStream(sortedRunsFile.get(0)));
         } catch (IOException e) {
             System.out.println("IO Error when writing sorted file onto stream");
@@ -108,7 +108,7 @@ public class ExternalSort extends Operator{
 
     private File writeFile(List<Batch> batchesToWrite) {
         try {
-            File tempBatchFile = new File("ExternalSort" + "-" + this.filenum);
+            File tempBatchFile = new File("ExternalSort" + "-" + this.filenum  + identifier);
 
             ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(tempBatchFile));
             for (Batch batch : batchesToWrite) {
@@ -167,6 +167,7 @@ public class ExternalSort extends Operator{
             // write sorted runs (NewCurrentBatch) to temp file.
             if (batchesFromBuffer.size() < 1) {
                 System.out.println("NOT writing files");
+                return;
             } else {
                 File tempBatchFile = writeFile(batchesFromBuffer);
                 this.sortedRunsFile.add(tempBatchFile);
@@ -250,7 +251,7 @@ public class ExternalSort extends Operator{
         // A single output buffer to store the sorted tuples. When it is full, we will spill it over to file.
         Batch outputBuffer = new Batch(this.batchSize);
         // The result file to store the merged sorted runs.
-        File resultFile = new File("ExternalSort_sortedRuns" + "_" + numOfMergeRuns + "_" + numOfMerges);
+        File resultFile = new File("ExternalSort_sortedRuns" + "_" + numOfMergeRuns + "_" + numOfMerges + identifier);
         ObjectOutputStream resultFileStream;
         try {
             resultFileStream = new ObjectOutputStream(new FileOutputStream(resultFile, true));
