@@ -44,11 +44,11 @@ public class RandomOptimizer {
      * * corresponding join operator implementation
      **/
     public static Operator makeExecPlan(Operator node) {
-        System.out.println("node op Type: " + node.getOpType());
         if (node.getOpType() == OpType.JOIN) {
             Operator left = makeExecPlan(((Join) node).getLeft());
             Operator right = makeExecPlan(((Join) node).getRight());
             int joinType = ((Join) node).getJoinType();
+            System.out.println("Join Type...:" + joinType);
             int numbuff = BufferManager.getBuffersPerJoin();
             switch (joinType) {
                 case JoinType.NESTEDJOIN:
@@ -68,6 +68,7 @@ public class RandomOptimizer {
                     sm.setLeft(left);
                     sm.setRight(right);
                     sm.setNumBuff(numbuff);
+                    return sm;
                 default:
                     return node;
             }
@@ -410,7 +411,9 @@ public class RandomOptimizer {
      * Modifies the schema of operators which are modified due to selecing an alternative neighbor plan
      **/
     private void modifySchema(Operator node) {
+        System.out.println("OpType is: " + node.getOpType());
         if (node.getOpType() == OpType.JOIN) {
+            System.out.println("Modify schema for join...");
             Operator left = ((Join) node).getLeft();
             Operator right = ((Join) node).getRight();
             modifySchema(left);

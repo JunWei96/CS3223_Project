@@ -13,6 +13,6 @@ public class JoinType {
     public static final int NESTEDJOIN = 2;
 
     public static int numJoinTypes() {
-        return 1;
+        return 3;
     }
 }

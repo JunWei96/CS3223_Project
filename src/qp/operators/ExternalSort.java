@@ -28,10 +28,10 @@ public class ExternalSort extends Operator{
         this.identifier = "";
     }
 
-    public ExternalSort(Operator base, int Buffernum, ArrayList<Integer> attrIndex, String identifier, int opType) {
+    public ExternalSort(Operator base, int buffernum, ArrayList<Integer> attrIndex, String identifier, int opType) {
         super(opType);
         this.base = base;
-        this.bufferNum = Buffernum;
+        this.bufferNum = buffernum;
         this.attrIndex = attrIndex;
         this.identifier = identifier;
     }
