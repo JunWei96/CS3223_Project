@@ -23,7 +23,7 @@ public class ExternalSort extends Operator{
 
     public ExternalSort(Operator base, int bufferNum, int opType) {
         super(opType);
-        System.out.print("External sort schema");
+//        System.out.print("External sort schema");
         this.base = base;
         this.bufferNum = bufferNum;
         this.identifier = "";
@@ -31,8 +31,8 @@ public class ExternalSort extends Operator{
 
     public ExternalSort(Operator base, int buffernum, ArrayList<Integer> attrIndex, String identifier, int opType) {
         super(opType);
-        System.out.print("External sort schema");
-        Debug.PPrint(base.getSchema());
+//        System.out.print("External sort schema");
+//        Debug.PPrint(base.getSchema());
         this.base = base;
         this.bufferNum = buffernum;
         this.attrIndex = attrIndex;
@@ -168,7 +168,7 @@ public class ExternalSort extends Operator{
 
             // write sorted runs (NewCurrentBatch) to temp file.
             if (batchesFromBuffer.size() < 1) {
-                System.out.println("NOT writing files");
+//                System.out.println("NOT writing files");
                 return;
             } else {
                 File tempBatchFile = writeFile(batchesFromBuffer);

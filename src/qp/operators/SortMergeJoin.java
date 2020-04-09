@@ -64,7 +64,7 @@ public class SortMergeJoin extends Join {
 
             if (fallbackcursor == -1) {
                 // advance left and right until they are equal
-                Debug.PPrint(leftsort.getBase().getSchema());
+//                Debug.PPrint(leftsort.getBase().getSchema());
 //                System.out.println("Left data: " + lefttuple._data + " for " + leftindex);
 //                System.out.println("Right data: " + righttuple._data + " for " + rightindex);
                 while (Tuple.compareTuples(lefttuple, righttuple, leftindex, rightindex) < 0) {
