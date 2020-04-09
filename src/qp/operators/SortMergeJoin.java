@@ -3,10 +3,7 @@ import qp.utils.Attribute;
 import qp.utils.Batch;
 import qp.utils.Tuple;
 
-import java.io.*;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import qp.utils.Condition;
 
 
@@ -48,6 +45,7 @@ public class SortMergeJoin extends Join {
         rightsort = new ExternalSort(right, numBuff, rightindex, "right", OpType.JOIN);
 
         if (!leftsort.open() || !rightsort.open()) {
+            System.out.println("(SortMerge) Failed to open left or right");
             return false;
         }
         leftbatch = leftsort.next();
@@ -66,6 +64,9 @@ public class SortMergeJoin extends Join {
 
             if (fallbackcursor == -1) {
                 // advance left and right until they are equal
+                Debug.PPrint(leftsort.getBase().getSchema());
+//                System.out.println("Left data: " + lefttuple._data + " for " + leftindex);
+//                System.out.println("Right data: " + righttuple._data + " for " + rightindex);
                 while (Tuple.compareTuples(lefttuple, righttuple, leftindex, rightindex) < 0) {
                     advanceLeft();
                     if (leftbatch == null) break;
@@ -123,7 +124,7 @@ public class SortMergeJoin extends Join {
 
     private void advanceLeft() {
         leftcursor++;
-        if (leftcursor >= leftbatch.size()) {
+        if (leftbatch != null && leftcursor >= leftbatch.size()) {
             leftbatch = leftsort.next();
             leftcursor = 0;
         }
@@ -132,7 +133,7 @@ public class SortMergeJoin extends Join {
 
     private void advanceRight() {
         rightcursor++;
-        if (rightcursor >= rightbatch.size() + backup.size()) {
+        if (rightbatch != null && rightcursor >= rightbatch.size() + backup.size()) {
             backup.addAll(rightbatch.tuples);
             rightbatch = rightsort.next();
         }

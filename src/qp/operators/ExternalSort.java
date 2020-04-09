@@ -23,6 +23,7 @@ public class ExternalSort extends Operator{
 
     public ExternalSort(Operator base, int bufferNum, int opType) {
         super(opType);
+        System.out.print("External sort schema");
         this.base = base;
         this.bufferNum = bufferNum;
         this.identifier = "";
@@ -30,6 +31,8 @@ public class ExternalSort extends Operator{
 
     public ExternalSort(Operator base, int buffernum, ArrayList<Integer> attrIndex, String identifier, int opType) {
         super(opType);
+        System.out.print("External sort schema");
+        Debug.PPrint(base.getSchema());
         this.base = base;
         this.bufferNum = buffernum;
         this.attrIndex = attrIndex;
@@ -48,6 +51,7 @@ public class ExternalSort extends Operator{
     // open() for pre-processing.
     public boolean open() {
         if (!base.open()) {
+            System.out.println("(External Sort) Failed to open External sort");
             return false;
         }
 
