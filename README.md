@@ -3,17 +3,22 @@ This is a SPJ query engine which performs query optimization.
 
 ## The implementations and modifications
 #### 1. Block nested join
-The [implementation](https://github.com/JunWei96/CS3223_Project/pull/10):
+The implementation:
 * open(): Materialize the right pages and opens the connection.
 * next(): For every left block, get matching tuples from the right batch and output the resultant batch.
+The implementation can be found at CS3223_Project/src/qp/operators/BlockNestedLoopJoin.java
+
 #### 2. sort Merge Join
-The [external sort](https://github.com/JunWei96/CS3223_Project/pull/4) is inplemented first, then the [sort merge join](https://github.com/JunWei96/CS3223_Project/pull/5/files) is implemented.
+The external sort is inplemented first, then the sort merge join is implemented. Can be found at CS3223_Project/src/qp/operators/ExternalSort.java and CS3223_Project/src/qp/operators/SortMergeJoin.java
+
 #### 3. DISTINCT implementation
-The [modifications](https://github.com/JunWei96/CS3223_Project/pull/7/commits/d443dc5ba586fab5691729a60314057779ee1b8e)
+The modifications can be found at CS3223_Project/src/qp/operators/Distinct.java
+
 #### 4. Groupby implementation
-The [implementation](https://github.com/JunWei96/CS3223_Project/pull/11/commits/ecb2d762352c65f0137d5db0196fab0294ad408e)
+Group the records by some column attributes. The implementation is located at CS3223_Project/src/qp/operators/GroupBy.java
+
 #### 5. Random optimizer implementation
-We have implemented [2 phrase optmization](https://github.com/JunWei96/CS3223_Project/pull/1). Details can be found in the report.
+We have implemented 2 phrase optmization. Details can be found in the report. The implementation is located at CS3223_Project/src/qp/optimizer/RandomOptimizer.java
 
 Bugs Identified are specified in the report.
 
