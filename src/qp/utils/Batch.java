@@ -11,7 +11,7 @@ public class Batch implements Serializable {
 
     int MAX_SIZE;             // Number of tuples per page
     static int PageSize;      // Number of bytes per page
-    ArrayList<Tuple> tuples;  // The tuples in the page
+    public ArrayList<Tuple> tuples;  // The tuples in the page
 
     /** Set number of bytes per page **/
     public static void setPageSize(int size) {

@@ -14,19 +14,18 @@ public class SortMergeJoin extends Join {
     private int batchsize;
     private ExternalSort leftsort;
     private ExternalSort rightsort;
-    private ArrayList<Integer> leftindex;
-    private ArrayList<Integer> rightindex;
-    private ExternalSort.TupleSortComparator comparator;
+    private ArrayList<Integer> leftindex = new ArrayList<>();
+    private ArrayList<Integer> rightindex = new ArrayList<>();
+    private ArrayList<Tuple> backup = new ArrayList<>();
 
-    private Batch outbatch;
     private Batch leftbatch;
     private Batch rightbatch;
     int leftcursor = 0;
     int rightcursor = 0;
+    int fallbackcursor = -1;
 
     public SortMergeJoin(Join jn) {
         super(jn.getLeft(), jn.getRight(), jn.getCondition(), jn.getOpType());
-        System.out.println("Sort merge join :" + jn.getJoinType());
         schema = jn.getSchema();
         jointype = jn.getJoinType();
         numBuff = jn.getNumBuff();
@@ -48,7 +47,6 @@ public class SortMergeJoin extends Join {
         leftsort = new ExternalSort(left, numBuff, leftindex, "left", OpType.JOIN);
         rightsort = new ExternalSort(right, numBuff, rightindex, "right", OpType.JOIN);
 
-        System.out.println("(SMJ) Opening left and right operator.");
         if (!leftsort.open() || !rightsort.open()) {
             return false;
         }
@@ -60,39 +58,48 @@ public class SortMergeJoin extends Join {
 
     @Override
     public Batch next() {
-        outbatch = new Batch(batchsize);
-        // Scan left until left's sort key >= right's current sort key
-         // Then scan right until right's sort key >= current left sort key
-        // When left sort key == right sort key, we at a partition where all tuples in this partition matches join condition
-        // Join them and place them in outbatch
-        // Start scanning from step 1 again.
+        Batch outbatch = new Batch(batchsize);
 
-        while(leftbatch != null && rightbatch != null) {
-          while(leftcursor < this.batchsize && rightcursor < this.batchsize) {
-              // compare the data in attributes
-              Tuple lefttuple = leftbatch.get(leftcursor);
-              Tuple righttuple = rightbatch.get(rightcursor);
-              if (lefttuple.checkJoin(righttuple, leftindex, rightindex)) {
-                  Tuple outtuple = lefttuple.joinWith(righttuple);
-                  outbatch.add(outtuple);
-                  rightcursor++;
-                  leftcursor++;
-                  if (outbatch.isFull()) {
-                      return outbatch;
-                  }
-              }
-          }
-          // if exit, load another batch
-          if (leftcursor >= this.batchsize) {
-              leftbatch = leftsort.next();
-              leftcursor = 0;
-          }
-          if (rightcursor >= this.batchsize) {
-              rightbatch = rightsort.next();
-              rightcursor = 0;
-          }
+        while (leftbatch != null && rightbatch != null) {
+            Tuple lefttuple = leftbatch.get(leftcursor);
+            Tuple righttuple = getRightTuple();
+
+            if (fallbackcursor == -1) {
+                // advance left and right until they are equal
+                while (Tuple.compareTuples(lefttuple, righttuple, leftindex, rightindex) < 0) {
+                    advanceLeft();
+                    if (leftbatch == null) break;
+                    lefttuple = leftbatch.get(leftcursor);
+                }
+                while (Tuple.compareTuples(lefttuple, righttuple, leftindex, rightindex) > 0) {
+                    advanceRight();
+                    if (rightbatch == null) break;
+                    righttuple = getRightTuple();
+                }
+                markFallbackCursorToRight();
+            }
+
+            if (Tuple.compareTuples(lefttuple, righttuple, leftindex, rightindex) == 0) {
+                outbatch.add(lefttuple.joinWith(righttuple));
+                advanceRight();
+                if (rightbatch == null) break;
+                if (outbatch.isFull()) {
+                    return outbatch;
+                }
+            } else {
+                rightcursor = fallbackcursor;
+                advanceLeft();
+                if (leftbatch == null) break;
+                fallbackcursor = -1;
+            }
         }
-        return outbatch;
+
+        if (outbatch.isEmpty()) {
+            close();
+            return null;
+        } else {
+            return outbatch;
+        }
     }
 
     @Override
@@ -100,6 +107,53 @@ public class SortMergeJoin extends Join {
         leftsort.close();
         rightsort.close();
         return true;
+    }
+
+    private Tuple getRightTuple() {
+        if (backup.size() == 0) {
+            return rightbatch.get(rightcursor);
+        } else {
+            if (rightcursor < backup.size()) {
+                return backup.get(rightcursor);
+            } else {
+                return rightbatch.get(rightcursor - backup.size());
+            }
+        }
+    }
+
+    private void advanceLeft() {
+        leftcursor++;
+        if (leftcursor >= leftbatch.size()) {
+            leftbatch = leftsort.next();
+            leftcursor = 0;
+        }
+//        printStatus();
+    }
+
+    private void advanceRight() {
+        rightcursor++;
+        if (rightcursor >= rightbatch.size() + backup.size()) {
+            backup.addAll(rightbatch.tuples);
+            rightbatch = rightsort.next();
+        }
+//        printStatus();
+    }
+
+    private void markFallbackCursorToRight() {
+        // mark fall back cursor with position of right cursor
+        if (rightcursor >= backup.size()) {
+            rightcursor -= backup.size();
+        }
+        fallbackcursor = rightcursor;
+        backup.clear();
+    }
+
+    private void printStatus() {
+        if (leftbatch == null || rightbatch == null) {
+            return;
+        }
+        System.out.println("Left " + leftcursor + ": " + leftbatch.get(leftcursor)._data +
+                " Right " + rightcursor + ": " + getRightTuple()._data);
     }
 }
 

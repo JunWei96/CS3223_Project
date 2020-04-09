@@ -57,7 +57,6 @@ public class ExternalSort extends Operator{
         this.batchSize = Batch.getPageSize() / this.base.getSchema().getTupleSize();
 
         generateSortedRuns();
-        System.out.println("generated sorted runs");
         mergeRuns();
 
         // At the end, after the merging process, we should only have 1 run left.
@@ -66,7 +65,6 @@ public class ExternalSort extends Operator{
         }
 
         try {
-            System.out.println("Assigning result stream.");
             resultStream = new ObjectInputStream(new FileInputStream(sortedRunsFile.get(0)));
         } catch (IOException e) {
             System.out.println("IO Error when writing sorted file onto stream");
