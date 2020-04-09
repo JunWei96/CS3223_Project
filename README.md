@@ -13,7 +13,7 @@ The [modifications](https://github.com/JunWei96/CS3223_Project/pull/7/commits/d4
 #### 4. Groupby implementation
 The [implementation](https://github.com/JunWei96/CS3223_Project/pull/11/commits/ecb2d762352c65f0137d5db0196fab0294ad408e)
 #### 5. Random optimizer implementation
-We have implemented [2 phrase optmization](https://github.com/JunWei96/CS3223_Project/pull/1)
+We have implemented [2 phrase optmization](https://github.com/JunWei96/CS3223_Project/pull/1). Details can be found in the report.
 
-## Bugs identified
+Bugs Identified are specified in the report.
 
